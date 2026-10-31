@@ -145,6 +145,59 @@ class DoomSoundSynth {
     osc.stop(now + 0.2);
   }
 
+  playMonsterGrowl() {
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(75, now);
+    osc.frequency.linearRampToValueAtTime(140, now + 0.25);
+    osc.frequency.linearRampToValueAtTime(60, now + 0.55);
+    gain.gain.setValueAtTime(0.45, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.55);
+  }
+
+  playMonsterAttack() {
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    // Low punch + sharp slash
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 0.22);
+    gain.gain.setValueAtTime(0.9, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.22);
+  }
+
+  playShotgunPump() {
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(450, now);
+    osc.frequency.exponentialRampToValueAtTime(120, now + 0.08);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.08);
+  }
+
   playPlayerHurt() {
     this.init();
     if (!this.ctx) return;
@@ -470,7 +523,14 @@ const player = {
   invulnerableTimer: 300, // 5 seconds initial spawn invulnerability!
   iFrameTimer: 0, // Post-damage grace period
   faceState: 'normal', // 'normal', 'grin', 'hurt', 'dead'
-  faceTimer: 0
+  faceTimer: 0,
+
+  // Attack & Impact Motion Effects
+  screenShake: 0,
+  pumpTimer: 0,
+  shellEjectTimer: 0,
+  shotgunSmokeTimer: 0,
+  clawSlashTimer: 0 // Monster melee scratch effect on screen
 };
 
 // Input State
@@ -489,20 +549,33 @@ const keys = {
 let monsters = [];
 
 function initMonsters() {
-  monsters = [
-    { id: 1, type: 'imp', x: 6.5, y: 2.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 2, type: 'demon', x: 8.5, y: 2.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
-    { id: 3, type: 'caco', x: 2.5, y: 5.5, hp: 60, maxHp: 60, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
-    { id: 4, type: 'imp', x: 14.5, y: 7.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 5, type: 'demon', x: 19.5, y: 3.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
-    { id: 6, type: 'imp', x: 7.5, y: 14.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 7, type: 'demon', x: 16.5, y: 14.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
-    { id: 8, type: 'imp', x: 10.5, y: 17.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 9, type: 'caco', x: 3.5, y: 20.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
-    { id: 10, type: 'demon', x: 18.5, y: 20.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
+  const baseList = [
+    { id: 1, type: 'imp', x: 6.5, y: 2.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020 },
+    { id: 2, type: 'demon', x: 8.5, y: 2.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026 },
+    { id: 3, type: 'caco', x: 2.5, y: 5.5, hp: 60, maxHp: 60, emoji: '👁️', name: '카코데몬', speed: 0.016 },
+    { id: 4, type: 'imp', x: 14.5, y: 7.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020 },
+    { id: 5, type: 'demon', x: 19.5, y: 3.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026 },
+    { id: 6, type: 'imp', x: 7.5, y: 14.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020 },
+    { id: 7, type: 'demon', x: 16.5, y: 14.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026 },
+    { id: 8, type: 'imp', x: 10.5, y: 17.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020 },
+    { id: 9, type: 'caco', x: 3.5, y: 20.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016 },
+    { id: 10, type: 'demon', x: 18.5, y: 20.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026 },
     // Boss in the Boss Chamber
-    { id: 99, type: 'boss', x: 12.5, y: 21.5, hp: 700, maxHp: 700, emoji: '💀', name: '사이버 데몬 보스', speed: 0.014, attackCooldown: 0, isDead: false }
+    { id: 99, type: 'boss', x: 12.5, y: 21.5, hp: 700, maxHp: 700, emoji: '💀', name: '사이버 데몬 보스', speed: 0.014 }
   ];
+
+  monsters = baseList.map(m => ({
+    ...m,
+    attackCooldown: 0,
+    isDead: false,
+    state: 'idle', // 'idle', 'chase', 'charging', 'attacking', 'hurt', 'dead'
+    chargeTimer: 0,
+    maxChargeTimer: (m.type === 'boss') ? 60 : 45, // 0.75s ~ 1.0s attack telegraph wind-up
+    attackAnimTimer: 0,
+    hurtTimer: 0,
+    lungeScale: 1.0,
+    shakeX: 0
+  }));
 }
 initMonsters();
 
@@ -687,12 +760,21 @@ function triggerShoot() {
   player.faceTimer = 25;
 
   if (player.weapon === 1) {
+    // Shotgun: Screen shake, shell ejection, muzzle smoke & pump action
+    player.screenShake = 6;
+    player.pumpTimer = 14;
+    player.shellEjectTimer = 18;
+    player.shotgunSmokeTimer = 22;
     doomSound.playShotgun();
     shootRaycastWeapon(45);
   } else if (player.weapon === 2) {
+    // Plasma: High-speed vibration
+    player.screenShake = 2.5;
     doomSound.playPlasma();
     shootRaycastWeapon(30);
   } else if (player.weapon === 3) {
+    // BFG 9000: Massive earthquake tremor
+    player.screenShake = 16;
     doomSound.playBFG();
     shootBFGWeapon();
   }
@@ -772,6 +854,22 @@ function shootRaycastWeapon(damage) {
 
   if (hitMonster) {
     hitMonster.hp -= damage;
+    hitMonster.hurtTimer = 14;
+    hitMonster.shakeX = (Math.random() - 0.5) * 12;
+
+    // Interrupt/delay monster charging if shot
+    if (hitMonster.state === 'charging') {
+      hitMonster.chargeTimer = Math.min(hitMonster.maxChargeTimer, hitMonster.chargeTimer + 12);
+    }
+
+    // Shotgun Knockback
+    const kx = hitMonster.x - player.x;
+    const ky = hitMonster.y - player.y;
+    const kDist = Math.sqrt(kx * kx + ky * ky) || 1;
+    const knock = (player.weapon === 1) ? 0.35 : 0.15;
+    if (canMoveTo(hitMonster.x + (kx / kDist) * knock, hitMonster.y)) hitMonster.x += (kx / kDist) * knock;
+    if (canMoveTo(hitMonster.x, hitMonster.y + (ky / kDist) * knock)) hitMonster.y += (ky / kDist) * knock;
+
     doomSound.playMonsterHurt();
     spawnDamageText(`-${damage}`, hitMonster.x, hitMonster.y);
 
@@ -808,6 +906,8 @@ function shootBFGWeapon() {
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 15) {
       m.hp -= 250;
+      m.hurtTimer = 22;
+      m.shakeX = (Math.random() - 0.5) * 16;
       if (m.hp <= 0) {
         m.isDead = true;
         player.kills++;
@@ -1034,6 +1134,22 @@ function updatePlayerMovement() {
   if (player.invulnerableTimer > 0) player.invulnerableTimer--;
   if (player.iFrameTimer > 0) player.iFrameTimer--;
 
+  // Screen shake & Attack Motion timers
+  if (player.screenShake > 0) {
+    player.screenShake = Math.max(0, player.screenShake - 0.55);
+  }
+  if (player.clawSlashTimer > 0) player.clawSlashTimer--;
+  if (player.shellEjectTimer > 0) player.shellEjectTimer--;
+  if (player.shotgunSmokeTimer > 0) player.shotgunSmokeTimer--;
+
+  // Shotgun pump action sound & motion
+  if (player.pumpTimer > 0) {
+    player.pumpTimer--;
+    if (player.pumpTimer === 1) {
+      doomSound.playShotgunPump();
+    }
+  }
+
   if (player.faceTimer > 0) {
     player.faceTimer--;
     if (player.faceTimer <= 0) player.faceState = 'normal';
@@ -1133,45 +1249,108 @@ function updateMonsters() {
     if (m.isDead) return;
     if (m.attackCooldown > 0) m.attackCooldown--;
 
+    // Hurt timer & knockback recovery
+    if (m.hurtTimer > 0) {
+      m.hurtTimer--;
+      m.shakeX = (Math.random() - 0.5) * 8;
+      if (m.hurtTimer <= 0) {
+        m.shakeX = 0;
+        if (m.state === 'hurt') m.state = 'chase';
+      }
+    }
+
+    // Attack strike animation timer & lunge scale decay
+    if (m.attackAnimTimer > 0) {
+      m.attackAnimTimer--;
+      m.lungeScale = 1.0 + (m.attackAnimTimer / 18) * 0.35;
+      if (m.attackAnimTimer <= 0) {
+        m.lungeScale = 1.0;
+        if (m.state === 'attacking') m.state = 'chase';
+      }
+    }
+
     const dx = player.x - m.x;
     const dy = player.y - m.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // If close enough, pursue player
-    if (dist < 11 && dist > 1.1) {
+    // 1. Attack Telegraph Wind-up (Charging Phase)
+    if (m.state === 'charging') {
+      m.chargeTimer--;
+      // Monster shakes violently as attack energy charges up
+      const intensity = 4 + (1 - m.chargeTimer / m.maxChargeTimer) * 6;
+      m.shakeX = (Math.random() - 0.5) * intensity;
+
+      // If player managed to back up far away, wind-up is cancelled
+      if (dist > 3.6) {
+        m.state = 'chase';
+        m.shakeX = 0;
+        return;
+      }
+
+      // Wind-up Complete -> Unleash Attack Lunge!
+      if (m.chargeTimer <= 0) {
+        m.state = 'attacking';
+        m.attackAnimTimer = 18;
+        m.lungeScale = 1.35;
+        m.shakeX = 0;
+        m.attackCooldown = 75; // ~1.25s attack cooldown
+        doomSound.playMonsterAttack();
+
+        // Dodge Check: If player stepped back outside melee range (> 2.2), attack misses!
+        if (dist > 2.2) {
+          spawnDamageText('💨 회피 성공!', m.x, m.y);
+          showNotification(`💨 ${m.name}의 돌진 공격을 회피했습니다!`);
+          return;
+        }
+
+        // Hit player (if not invulnerable)
+        if (player.invulnerableTimer > 0 || player.iFrameTimer > 0 || isQuizModalOpen) {
+          return; // Invulnerable!
+        }
+
+        player.iFrameTimer = 55; // Grace period
+        player.clawSlashTimer = 20; // 3-line bloody claw slash on screen
+        player.screenShake = 10; // Viewport tremor
+        player.damageFlash = 6;
+        player.faceState = 'hurt';
+        player.faceTimer = 24;
+        doomSound.playPlayerHurt();
+
+        // Damage calculation
+        const rawDmg = (m.type === 'boss') ? 22 : (m.type === 'caco') ? 14 : (m.type === 'demon') ? 11 : 7;
+        const absorbed = Math.min(player.armor, Math.floor(rawDmg * 0.6));
+        const hpDmg = rawDmg - absorbed;
+
+        player.armor = Math.max(0, player.armor - absorbed);
+        player.health = Math.max(0, player.health - hpDmg);
+        showNotification(`😱 ${m.name}의 돌진 타격! (체력 -${hpDmg}, 쉴드 -${absorbed})`);
+
+        if (player.health <= 0) {
+          player.faceState = 'dead';
+          showGameOverModal();
+        }
+      }
+      return;
+    }
+
+    // 2. Not charging: Check if we should start telegraph wind-up
+    if (m.attackAnimTimer <= 0 && dist <= 2.2 && m.attackCooldown <= 0) {
+      m.state = 'charging';
+      m.chargeTimer = m.maxChargeTimer;
+      doomSound.playMonsterGrowl();
+      return;
+    }
+
+    // 3. Movement pursuit towards player
+    if (dist < 11 && dist > 1.2 && m.attackAnimTimer <= 0 && m.hurtTimer <= 0) {
+      m.state = 'chase';
       const stepX = (dx / dist) * m.speed;
       const stepY = (dy / dist) * m.speed;
       if (canMoveTo(m.x + stepX, m.y)) m.x += stepX;
       if (canMoveTo(m.x, m.y + stepY)) m.y += stepY;
-    }
-
-    // Monster melee attack if very close and cooldown ready
-    if (dist <= 1.1 && m.attackCooldown <= 0) {
-      // 100% Invulnerability check: Spawn grace period, i-frame, or quiz open
-      if (player.invulnerableTimer > 0 || player.iFrameTimer > 0 || isQuizModalOpen) {
-        return; // Complete invulnerability!
-      }
-
-      m.attackCooldown = 80; // ~1.3s attack cooldown
-      player.iFrameTimer = 55; // ~0.9s post-hit invulnerability
-
-      // Balanced damage: Armor absorbs 60% of damage
-      const rawDmg = (m.type === 'boss') ? 20 : (m.type === 'caco') ? 12 : (m.type === 'demon') ? 10 : 6;
-      const absorbed = Math.min(player.armor, Math.floor(rawDmg * 0.6));
-      const hpDmg = rawDmg - absorbed;
-
-      player.armor = Math.max(0, player.armor - absorbed);
-      player.health = Math.max(0, player.health - hpDmg);
-      player.damageFlash = 5;
-      player.faceState = 'hurt';
-      player.faceTimer = 22;
-      doomSound.playPlayerHurt();
-      showNotification(`😱 ${m.name}의 공격! (체력 -${hpDmg}, 쉴드 -${absorbed})`);
-
-      if (player.health <= 0) {
-        player.faceState = 'dead';
-        showGameOverModal();
-      }
+    } else if (dist >= 11 && m.state !== 'charging' && m.state !== 'attacking') {
+      m.state = 'idle';
+      m.shakeX = 0;
     }
   });
 }
@@ -1182,6 +1361,14 @@ function updateMonsters() {
 function renderDoom3D() {
   const w = viewWidth;
   const h = viewHeight;
+
+  // Viewport Screen Shake Offset
+  ctx.save();
+  if (player.screenShake > 0.1) {
+    const shakeOffsetX = (Math.random() - 0.5) * player.screenShake * 1.6;
+    const shakeOffsetY = (Math.random() - 0.5) * player.screenShake * 1.6;
+    ctx.translate(shakeOffsetX, shakeOffsetY);
+  }
 
   // 1. Draw Ceiling & Floor Gradients
   const ceilGrad = ctx.createLinearGradient(0, 0, 0, h / 2);
@@ -1355,8 +1542,53 @@ function renderDoom3D() {
   ctx.moveTo(w / 2, h / 2 - 8); ctx.lineTo(w / 2, h / 2 + 8);
   ctx.stroke();
 
+  // 6.5 Render Monster Claw Slash Scratch Effect on Screen
+  if (player.clawSlashTimer > 0) {
+    renderClawScratch(w, h);
+  }
+
+  // Restore screen shake transformation before drawing Retro HUD
+  ctx.restore();
+
   // 7. Render Retro Bottom DOOM HUD
   renderRetroHUD();
+}
+
+function renderClawScratch(w, h) {
+  const alpha = Math.min(1.0, player.clawSlashTimer / 10);
+  ctx.save();
+  ctx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(185, 28, 28, 0.9)';
+  ctx.shadowBlur = 10;
+
+  const progress = Math.min(1.0, (20 - player.clawSlashTimer) / 6);
+  const slashLen = Math.min(w, h) * 0.55 * progress;
+
+  const startX = w * 0.28;
+  const startY = h * 0.20;
+
+  // 3 sharp diagonal scratch lines
+  for (let i = 0; i < 3; i++) {
+    const ox = i * 26;
+    const oy = i * 12;
+    ctx.beginPath();
+    ctx.moveTo(startX + ox, startY + oy);
+    ctx.lineTo(startX + ox + slashLen * 0.72, startY + oy + slashLen);
+    ctx.stroke();
+  }
+
+  // Blood droplets splatter
+  ctx.fillStyle = `rgba(220, 38, 38, ${alpha * 0.85})`;
+  for (let i = 0; i < 5; i++) {
+    const bx = startX + 40 + i * 32;
+    const by = startY + 65 + i * 22 + Math.sin(i * 1.5) * 15;
+    ctx.beginPath();
+    ctx.arc(bx, by, 3 + (i % 3) * 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function renderSprites(w, h) {
@@ -1420,16 +1652,90 @@ function renderSprites(w, h) {
 
       if (sp.type === 'monster') {
         const m = sp.data;
+        const monsterDrawX = spriteScreenX + (m.shakeX || 0);
+        const size = Math.max(32, Math.min(spriteHeight * (m.lungeScale || 1.0), 250));
+
+        // 1. Attack Telegraph Charging Visuals (Wind-up aura & gauge)
+        if (m.state === 'charging') {
+          // Red energy pulse aura behind monster
+          const pulse = 0.7 + 0.3 * Math.sin(Date.now() / 60);
+          const auraRadius = (size * 0.7) * pulse;
+          const auraGrad = ctx.createRadialGradient(monsterDrawX, h / 2, size * 0.15, monsterDrawX, h / 2, auraRadius);
+          auraGrad.addColorStop(0, 'rgba(239, 68, 68, 0.75)');
+          auraGrad.addColorStop(0.6, 'rgba(249, 115, 22, 0.45)');
+          auraGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+          ctx.fillStyle = auraGrad;
+          ctx.beginPath();
+          ctx.arc(monsterDrawX, h / 2, auraRadius, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Telegraph Warning Text
+          ctx.font = 'bold 12px sans-serif';
+          ctx.fillStyle = '#facc15';
+          ctx.strokeStyle = '#991b1b';
+          ctx.lineWidth = 3;
+          ctx.textAlign = 'center';
+          ctx.strokeText('⚠️ 돌진 공격 준비!', monsterDrawX, drawStartY - 24);
+          ctx.fillText('⚠️ 돌진 공격 준비!', monsterDrawX, drawStartY - 24);
+
+          // Telegraph Charging Progress Bar
+          const chargeRatio = Math.max(0, Math.min(1.0, 1.0 - (m.chargeTimer / m.maxChargeTimer)));
+          const cBarW = Math.max(50, size * 0.9);
+          const cBarH = 6;
+          const cBarX = monsterDrawX - cBarW / 2;
+          const cBarY = drawStartY - 16;
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+          ctx.fillRect(cBarX, cBarY, cBarW, cBarH);
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(cBarX, cBarY, cBarW * chargeRatio, cBarH);
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(cBarX, cBarY, cBarW, cBarH);
+        } else if (m.state === 'attacking') {
+          // Attack Strike Visuals: Sharp slash sparks
+          ctx.strokeStyle = 'rgba(239, 68, 68, 0.9)';
+          ctx.lineWidth = 3;
+          for (let i = -1; i <= 1; i++) {
+            ctx.beginPath();
+            ctx.moveTo(monsterDrawX + i * 22 - 15, h / 2 - 25);
+            ctx.lineTo(monsterDrawX + i * 22 + 20, h / 2 + 30);
+            ctx.stroke();
+          }
+
+          // Strike Warning Text
+          ctx.font = 'bold 13px sans-serif';
+          ctx.fillStyle = '#ef4444';
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 3;
+          ctx.textAlign = 'center';
+          ctx.strokeText('💥 돌진 타격!', monsterDrawX, drawStartY - 20);
+          ctx.fillText('💥 돌진 타격!', monsterDrawX, drawStartY - 20);
+        } else if (m.hurtTimer > 0) {
+          // Hurt Flash Behind Monster
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+          ctx.beginPath();
+          ctx.arc(monsterDrawX, h / 2, size * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 2. Monster Emoji Sprite
+        let emojiToDraw = m.emoji;
+        if (m.hurtTimer > 0) {
+          emojiToDraw = '💥';
+        } else if (m.state === 'attacking') {
+          emojiToDraw = (m.type === 'boss') ? '☠️' : (m.type === 'caco') ? '👁️‍🗨️' : (m.type === 'demon') ? '🔥' : '👺';
+        }
+
         ctx.font = `${Math.floor(size * 0.9)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(m.emoji, spriteScreenX, h / 2);
+        ctx.fillText(emojiToDraw, monsterDrawX, h / 2);
 
-        // Monster Health Bar
+        // 3. Monster Health Bar
         const barW = Math.max(40, size * 0.8);
         const barH = 6;
-        const barX = spriteScreenX - barW / 2;
-        const barY = drawStartY - 10;
+        const barX = monsterDrawX - barW / 2;
+        const barY = drawStartY - 8;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(barX, barY, barW, barH);
         ctx.fillStyle = (m.type === 'boss') ? '#a855f7' : '#ef4444';
@@ -1491,8 +1797,52 @@ function renderFirstPersonWeapon(w, h) {
     ctx.restore();
   }
 
-  // 2. Draw Weapon Sprite (Canvas Procedural Doom Shotgun / Plasma Gun)
+  // 2. Shotgun Muzzle Smoke Particles
+  if (player.shotgunSmokeTimer > 0 && player.weapon === 1) {
+    ctx.save();
+    const st = 1.0 - (player.shotgunSmokeTimer / 22);
+    const smokeAlpha = (1.0 - st) * 0.45;
+    ctx.fillStyle = `rgba(203, 213, 225, ${smokeAlpha})`;
+    for (let i = 0; i < 3; i++) {
+      const smX = centerX - 10 + i * 10 + Math.sin(st * 4 + i) * 6;
+      const smY = centerY - 55 - st * 40 - i * 10;
+      const smRadius = 5 + st * 12 + i * 2;
+      ctx.beginPath();
+      ctx.arc(smX, smY, smRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 3. Shotgun Shell Ejection Motion (Flying brass shell)
+  if (player.shellEjectTimer > 0 && player.weapon === 1) {
+    ctx.save();
+    const t = 1.0 - (player.shellEjectTimer / 18); // 0 to 1
+    const shellX = centerX + 25 + t * 75;
+    const shellY = centerY - 35 - Math.sin(t * Math.PI) * 45 + t * 40;
+    const angle = t * Math.PI * 3.5;
+
+    ctx.translate(shellX, shellY);
+    ctx.rotate(angle);
+    // Red shotgun casing with brass rim
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(-8, -4, 12, 8);
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(4, -4, 5, 8);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(8, -5, 2, 10);
+    ctx.restore();
+  }
+
+  // 4. Draw Weapon Sprite (Canvas Procedural Doom Shotgun / Plasma Gun / BFG)
   ctx.save();
+  if (player.kickY > 2) {
+    // Slight visceral weapon recoil tilt
+    ctx.translate(centerX, centerY);
+    ctx.rotate((player.kickY / 30) * 0.04);
+    ctx.translate(-centerX, -centerY);
+  }
+
   if (player.weapon === 1) {
     // Super Shotgun (Double Barrel)
     ctx.fillStyle = '#1e293b';
