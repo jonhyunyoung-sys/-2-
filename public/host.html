@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gimkit Host - 대형 스크린 & 진행자</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-glow bg-glow-3"></div>
+
+  <div class="app-container">
+    <!-- Host Top Navigation -->
+    <header class="top-nav">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <a href="/" class="brand">
+          <span>⚡</span> GIMKIT
+        </a>
+        <span class="brand-badge">HOST SCREEN</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <!-- Room Code Display -->
+        <div style="background: rgba(15, 23, 42, 0.9); border: 2px solid var(--primary); padding: 0.4rem 1.2rem; border-radius: 12px; display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">방 번호:</span>
+          <span id="roomCodeDisplay" style="font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; color: #fff;">------</span>
+          <button class="btn btn-outline" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;" onclick="copyJoinLink()" title="참가 링크 복사">
+            📋 링크 복사
+          </button>
+        </div>
+
+        <!-- Timer / Goal Pill -->
+        <div id="gameStatusPill" class="stat-pill" style="display: none; font-size: 1.1rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);">
+          ⏱️ <span id="gameTimerDisplay">05:00</span>
+        </div>
+
+        <!-- Sound Toggle -->
+        <button id="soundToggleBtn" class="btn btn-outline btn-icon" onclick="toggleSound()" title="사운드 ON/OFF">
+          🔊
+        </button>
+
+        <!-- Force End Game (In-Game Only) -->
+        <button id="btnEndGame" class="btn btn-danger" style="display: none; padding: 0.4rem 0.9rem; font-size: 0.85rem;" onclick="endGameEarly()">
+          게임 조기 종료 ⏹️
+        </button>
+      </div>
+    </header>
+
+    <!-- SECTION 1: LOBBY -->
+    <main id="lobbySection" style="display: block;">
+      <div style="display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem;">
+        
+        <!-- Left: Game Settings & Controls -->
+        <div class="card">
+          <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+            ⚙️ 게임 규칙 설정
+          </h2>
+
+          <!-- Primary Game Type Selector (Don't Look Down vs Classic) -->
+          <div style="margin-bottom: 1.2rem; background: rgba(15, 23, 42, 0.9); padding: 0.8rem; border-radius: 14px; border: 2px solid #38bdf8;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 800; color: #38bdf8; margin-bottom: 0.5rem; text-transform: uppercase;">
+              🎮 게임 모드 선택 (필수)
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <button id="typeDldBtn" class="btn btn-primary" style="width: 100%; justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.95rem; background: linear-gradient(135deg, #0284c7, #0369a1); border: 2px solid #38bdf8;" onclick="setGameType('dont-look-down')">
+                <span style="font-size: 1.4rem;">🧗</span>
+                <div style="text-align: left;">
+                  <div style="font-weight: 900; color: #fff;">Don't Look Down (1,000m 등반)</div>
+                  <div style="font-size: 0.75rem; color: #bae6fd; font-weight: 600;">2D 파쿠르 점프 & 퀴즈 에너지 충전</div>
+                </div>
+              </button>
+              <button id="typeClassicBtn" class="btn btn-outline" style="width: 100%; justify-content: flex-start; padding: 0.75rem 1rem; font-size: 0.95rem;" onclick="setGameType('classic')">
+                <span style="font-size: 1.4rem;">💰</span>
+                <div style="text-align: left;">
+                  <div style="font-weight: 800; color: #fff;">클래식 머니 배틀</div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted);">상점 업그레이드 & 자산 레이스</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Classic Options Wrap (Hidden when Don't Look Down is active) -->
+          <div id="classicOptionsWrap" style="display: none;">
+            <!-- Mode Select -->
+            <div style="margin-bottom: 1.2rem;">
+              <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">
+                승리 조건
+              </label>
+              <div style="display: flex; gap: 0.5rem;">
+                <button id="modeTimeBtn" class="btn btn-primary" style="flex: 1; font-size: 0.9rem; padding: 0.6rem;" onclick="setMode('time')">
+                  ⏱️ 시간 제한
+                </button>
+                <button id="modeRaceBtn" class="btn btn-outline" style="flex: 1; font-size: 0.9rem; padding: 0.6rem;" onclick="setMode('race')">
+                  🏁 목표 레이스
+                </button>
+              </div>
+            </div>
+
+            <!-- Time limit options -->
+            <div id="timeOptionsBox" style="margin-bottom: 1.2rem;">
+              <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">
+                제한 시간
+              </label>
+              <select id="timeLimitSelect" style="width: 100%; padding: 0.65rem; border-radius: 10px; background: #0f172a; border: 1px solid var(--border); color: #fff; font-weight: 700;">
+                <option value="180">3분 (초고속 배틀)</option>
+                <option value="300" selected>5분 (표준 매치)</option>
+                <option value="600">10분 (전략적 토너먼트)</option>
+                <option value="900">15분 (장기전)</option>
+              </select>
+            </div>
+
+            <!-- Race Target options -->
+            <div id="raceOptionsBox" style="margin-bottom: 1.2rem; display: none;">
+              <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">
+                목표 금액 ($)
+              </label>
+              <select id="raceTargetSelect" style="width: 100%; padding: 0.65rem; border-radius: 10px; background: #0f172a; border: 1px solid var(--border); color: #fff; font-weight: 700;">
+                <option value="3000">$3,000</option>
+                <option value="10000" selected>$10,000</option>
+                <option value="50000">$50,000</option>
+                <option value="100000">$100,000</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Quiz Set Select & Excel Manager -->
+          <div style="margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">
+                퀴즈 세트 선택
+              </label>
+              <button class="btn btn-outline" style="padding: 0.15rem 0.5rem; font-size: 0.75rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" onclick="downloadExcelTemplate()" title="엑셀 템플릿 파일 다운로드">
+                📥 템플릿 다운로드
+              </button>
+            </div>
+
+            <select id="quizSetSelect" style="width: 100%; padding: 0.65rem; border-radius: 10px; background: #0f172a; border: 1px solid var(--border); color: #fff; font-weight: 700; margin-bottom: 0.6rem;">
+              <option value="general">🌍 상식 & 지식 퀴즈 (12문항)</option>
+              <option value="dev">💻 코딩 & IT 기술 퀴즈 (10문항)</option>
+              <option value="gaming">🎮 게임 & 대중문화 퀴즈 (6문항)</option>
+            </select>
+
+            <!-- Hidden File Input for Excel Upload -->
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="onExcelFileSelected(event)" />
+
+            <!-- Excel Upload Button -->
+            <button class="btn btn-outline" style="width: 100%; padding: 0.55rem; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 0.4rem; border-style: dashed; border-color: rgba(99, 102, 241, 0.6); background: rgba(99, 102, 241, 0.08);" onclick="triggerExcelUpload()">
+              <span>📤</span> <strong>엑셀(xlsx) 파일 업로드로 퀴즈 추가</strong>
+            </button>
+          </div>
+
+          <!-- Bot Management -->
+          <div style="margin-bottom: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+              <span style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);">가상 AI 봇 참가</span>
+              <span id="botCountTag" style="font-size: 0.75rem; background: #312e81; color: #a5b4fc; padding: 0.15rem 0.5rem; border-radius: 6px;">0명</span>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-outline" style="flex: 1; font-size: 0.85rem; padding: 0.5rem;" onclick="addBot()">
+                + 봇 1명 추가
+              </button>
+              <button class="btn btn-outline" style="flex: 1; font-size: 0.85rem; padding: 0.5rem;" onclick="addMultipleBots(3)">
+                + 봇 3명 추가
+              </button>
+            </div>
+          </div>
+
+          <!-- START GAME BUTTON -->
+          <button id="btnStartGame" class="btn btn-success" style="width: 100%; padding: 1.1rem; font-size: 1.25rem; font-weight: 900;" onclick="startGame()">
+            게임 시작 🚀
+          </button>
+        </div>
+
+        <!-- Right: Player Lobby & Join Guide -->
+        <div class="card" style="display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+            <div>
+              <h2 style="font-size: 1.3rem; font-weight: 800;">참가자 대기실</h2>
+              <p style="color: var(--text-muted); font-size: 0.85rem;">플레이어가 접속하면 실시간으로 나타납니다.</p>
+            </div>
+            <div style="font-size: 1.1rem; font-weight: 800; color: #34d399;">
+              총 <span id="playerCount">0</span>명 준비 완료
+            </div>
+          </div>
+
+          <!-- Big Join & QR Code Banner -->
+          <div style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(56, 189, 248, 0.12)); border: 2px solid rgba(99, 102, 241, 0.4); border-radius: 20px; padding: 1.2rem 1.4rem; margin-bottom: 1.5rem;">
+            <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
+              
+              <!-- QR Code Card -->
+              <div style="position: relative; cursor: pointer; text-align: center;" onclick="openLargeQrModal()" title="클릭하여 대형 화면으로 확대">
+                <div style="background: #ffffff; padding: 10px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); display: inline-block;">
+                  <img id="qrCodeImg" src="" alt="QR Code" style="width: 130px; height: 130px; display: block; border-radius: 8px;" />
+                </div>
+                <div style="margin-top: 0.4rem; font-size: 0.75rem; color: #a5b4fc; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 0.2rem;">
+                  <span>🔍</span> 클릭하여 확대
+                </div>
+              </div>
+
+              <!-- Join URL & Instructions -->
+              <div style="flex: 1; min-width: 240px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+                  <span style="font-size: 0.85rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px;">
+                    📱 모바일 QR 코드 스캔 참가
+                  </span>
+                  <!-- IP mode toggle -->
+                  <div style="display: flex; gap: 0.3rem;">
+                    <button id="btnUseNetworkIp" class="btn btn-primary" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="switchJoinUrlMode('network')">
+                      Wi-Fi 모바일
+                    </button>
+                    <button id="btnUseLocalhost" class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;" onclick="switchJoinUrlMode('local')">
+                      localhost
+                    </button>
+                  </div>
+                </div>
+
+                <div id="joinUrlDisplay" style="font-size: 1.25rem; font-weight: 900; color: #ffffff; margin-bottom: 0.5rem; word-break: break-all;">
+                  http://...
+                </div>
+
+                <div style="background: rgba(15, 23, 42, 0.75); border: 1px solid rgba(56, 189, 248, 0.4); border-radius: 10px; padding: 0.6rem 0.8rem; margin-bottom: 0.8rem; font-size: 0.82rem; color: #bae6fd; line-height: 1.4;">
+                  📶 <strong>연결 안내:</strong> 스마트폰의 Wi-Fi가 이 컴퓨터와 <strong>동일한 공유기(와이파이)</strong>에 연결되어 있는지 확인해주세요. (LTE/5G 모바일 데이터로는 공유기 사설망 접속 불가)
+                </div>
+
+                <div style="display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;">
+                  <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="copyJoinLink()">
+                    📋 링크 복사
+                  </button>
+                  <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" onclick="openLargeQrModal()">
+                    🖥️ 프로젝터 전체화면 QR
+                  </button>
+                  <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; color: #a5b4fc;" onclick="promptCustomIp()">
+                    ✏️ IP 수동 설정
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Players Grid -->
+          <div id="lobbyPlayersGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.8rem; overflow-y: auto; max-height: 380px; flex: 1;">
+            <!-- Player cards inserted here -->
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- SECTION 2: LIVE IN-GAME LEADERBOARD -->
+    <main id="inGameSection" style="display: none;">
+      <!-- Live Event Ticker -->
+      <div class="ticker-box">
+        <span style="font-size: 1.3rem;">📢</span>
+        <div id="tickerContent" class="ticker-text" style="color: #a5b4fc;">
+          게임이 진행 중입니다. 플레이어들이 문제를 풀고 있습니다!
+        </div>
+      </div>
+
+      <!-- DLD Mountain View Box (Shown when Don't Look Down is active) -->
+      <div id="dldMountainBox" style="display: none; margin-bottom: 1.5rem;">
+        <div class="card" style="padding: 1.2rem;">
+          <h2 style="font-size: 1.3rem; font-weight: 800; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #38bdf8;">
+            🏔️ 1,000m 고도별 등반 현황
+          </h2>
+          <div style="position: relative; height: 380px; background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; padding: 10px;">
+            <div style="position: absolute; top: 10px; right: 15px; font-weight: 900; color: #f59e0b;">🏆 1,000m (PEAK)</div>
+            <div style="position: absolute; top: 60px; right: 15px; font-weight: 700; color: #a855f7; font-size: 0.8rem;">🚀 Summit 6: One Way Up (850m)</div>
+            <div style="position: absolute; top: 130px; right: 15px; font-weight: 700; color: #38bdf8; font-size: 0.8rem;">❄️ Summit 5: Frosty Peaks (680m)</div>
+            <div style="position: absolute; top: 200px; right: 15px; font-weight: 700; color: #10b981; font-size: 0.8rem;">🍄 Summit 4: Growing Up (500m)</div>
+            <div style="position: absolute; top: 265px; right: 15px; font-weight: 700; color: #06b6d4; font-size: 0.8rem;">🕵️ Summit 3: Agent Adventure (350m)</div>
+            <div style="position: absolute; top: 320px; right: 15px; font-weight: 700; color: #f43f5e; font-size: 0.8rem;">🪸 Summit 2: Coral Climb (200m)</div>
+            <div style="position: absolute; bottom: 10px; right: 15px; font-weight: 700; color: #ea580c; font-size: 0.8rem;">🌋 Summit 1: Emberwall (0m)</div>
+            <div id="mountainPinsContainer" style="position: relative; width: 100%; height: 100%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Leaderboard Card -->
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+          <h2 id="leaderboardTitle" style="font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+            🏆 실시간 고도 랭킹보드
+          </h2>
+          <div id="modeStatusTag" style="font-size: 0.9rem; font-weight: 700; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 0.3rem 0.8rem; border-radius: 8px;">
+            진행 중
+          </div>
+        </div>
+
+        <div id="leaderboardList" class="leaderboard-table">
+          <!-- Dynamic Leaderboard Rows -->
+        </div>
+      </div>
+    </main>
+
+    <!-- SECTION 3: PODIUM & RESULTS -->
+    <main id="podiumSection" style="display: none;">
+      <div class="card" style="text-align: center; padding: 2.5rem 1.5rem;">
+        <h1 style="font-size: 2.8rem; font-weight: 900; background: linear-gradient(135deg, #f59e0b, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          🎉 게임 종료! 시상대 🎉
+        </h1>
+        <p id="endReasonText" style="color: var(--text-muted); font-size: 1.15rem; margin-top: 0.5rem;">
+          승부가 결정되었습니다!
+        </p>
+
+        <!-- 3D Style Podium -->
+        <div id="podiumContainer" class="podium-container">
+          <!-- Podium steps inserted by JS -->
+        </div>
+
+        <!-- Full Final Rankings -->
+        <div style="max-width: 600px; margin: 2rem auto; text-align: left;">
+          <h3 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 1rem; text-align: center;">전체 최종 순위</h3>
+          <div id="finalRankingsList" class="leaderboard-table"></div>
+        </div>
+
+        <!-- Action Button -->
+        <button class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1.15rem; font-weight: 800; margin-top: 1rem;" onclick="location.reload()">
+          새 게임 시작하기 🔄
+        </button>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Big Screen / Classroom Projector QR Modal -->
+  <div id="largeQrModal" class="modal-backdrop" style="display: none;" onclick="closeLargeQrModal()">
+    <div class="modal-box" style="max-width: 520px; text-align: center; padding: 2.5rem 2rem;" onclick="event.stopPropagation()">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+        <h2 style="font-size: 1.5rem; font-weight: 900; background: linear-gradient(135deg, #a5b4fc, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          📱 스마트폰 카메라로 스캔
+        </h2>
+        <button class="btn btn-outline" style="padding: 0.3rem 0.6rem; font-size: 1rem;" onclick="closeLargeQrModal()">✕</button>
+      </div>
+
+      <div style="background: #ffffff; padding: 18px; border-radius: 24px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); display: inline-block; margin-bottom: 1.5rem;">
+        <img id="largeQrImg" src="" alt="Large QR Code" style="width: 300px; height: 300px; display: block; border-radius: 12px;" />
+      </div>
+
+      <div style="background: rgba(15, 23, 42, 0.9); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; margin-bottom: 1.2rem;">
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.2rem;">게임 코드 (GAME CODE)</div>
+        <div id="modalGameCode" style="font-size: 2.2rem; font-weight: 900; letter-spacing: 4px; color: #38bdf8;">
+          ------
+        </div>
+        <div id="modalJoinUrl" style="font-size: 0.95rem; color: #a5b4fc; font-weight: 700; margin-top: 0.4rem; word-break: break-all;">
+          http://...
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="width: 100%; padding: 0.85rem;" onclick="closeLargeQrModal()">
+        닫기
+      </button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/xlsx.full.min.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/quiz-manager.js"></script>
+  <script src="/js/host.js"></script>
+</body>
+</html>

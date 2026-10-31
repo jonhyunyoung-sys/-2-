@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Gimkit - Don't Look Down (1,000m 등반 파쿠르)</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      min-height: -webkit-fill-available;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none;
+      background: #000;
+    }
+
+    #gameCanvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      background: #0f172a;
+    }
+
+    /* HUD Layer - Fully Responsive with dvh and safe area */
+    .hud-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+      padding: max(8px, env(safe-area-inset-top, 8px)) max(12px, env(safe-area-inset-right, 12px)) 0 max(12px, env(safe-area-inset-left, 12px));
+    }
+
+    .hud-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+      pointer-events: auto;
+      flex-wrap: wrap;
+    }
+
+    /* Altitude & Summit Display */
+    .altitude-badge {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 2px solid #38bdf8;
+      border-radius: 14px;
+      padding: 0.4rem 0.9rem;
+      box-shadow: 0 4px 18px rgba(56, 189, 248, 0.25);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .altitude-val {
+      font-size: 1.7rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      text-shadow: 0 0 10px #38bdf8;
+    }
+
+    .summit-val {
+      font-size: 0.75rem;
+      color: #38bdf8;
+      font-weight: 800;
+      margin-top: 0.15rem;
+      white-space: nowrap;
+    }
+
+    /* Energy Gauge */
+    .energy-gauge-box {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.45rem 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      min-width: 140px;
+    }
+
+    .energy-bar-wrap {
+      width: 100%;
+      height: 9px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .energy-bar-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #f59e0b, #eab308);
+      box-shadow: 0 0 8px #f59e0b;
+      transition: width 0.15s ease;
+    }
+
+    /* Quick Question Button */
+    .btn-charge-energy {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 0.95rem;
+      padding: 0.55rem 1.1rem;
+      border-radius: 12px;
+      border: 2px solid #fef08a;
+      box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      animation: pulseGlow 1.8s infinite;
+      pointer-events: auto;
+      white-space: nowrap;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4); }
+      50% { transform: scale(1.03); box-shadow: 0 6px 22px rgba(245, 158, 11, 0.7); }
+    }
+
+    /* Leaderboard Badge */
+    .hud-leaderboard-box {
+      background: rgba(15, 23, 42, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 0.45rem 0.8rem;
+      min-width: 150px;
+    }
+
+    /* Right Vertical Altitude Minimap */
+    .minimap-bar {
+      position: fixed;
+      right: max(10px, env(safe-area-inset-right, 10px));
+      top: 45%;
+      transform: translateY(-50%);
+      width: 38px;
+      height: clamp(180px, 38vh, 320px);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px 3px;
+      z-index: 12;
+      pointer-events: auto;
+    }
+
+    .minimap-track {
+      position: relative;
+      width: 5px;
+      flex: 1;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+    }
+
+    .minimap-pin {
+      position: absolute;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.1rem;
+      transition: top 0.2s ease;
+      filter: drop-shadow(0 0 6px #38bdf8);
+    }
+
+    .minimap-pin.other {
+      font-size: 0.85rem;
+      filter: none;
+      opacity: 0.8;
+    }
+
+    /* Fall Scream Toast */
+    .fall-warning {
+      position: fixed;
+      top: 25%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(239, 68, 68, 0.92);
+      border: 2px solid #ffffff;
+      padding: 0.7rem 1.5rem;
+      border-radius: 16px;
+      font-size: 1.4rem;
+      font-weight: 900;
+      color: #ffffff;
+      box-shadow: 0 0 35px rgba(239, 68, 68, 0.8);
+      z-index: 30;
+      display: none;
+      animation: shake 0.3s infinite;
+      text-align: center;
+      max-width: 90vw;
+    }
+
+    /* On-screen Mobile Controls - Safe from Home bar and Notch */
+    .mobile-controls {
+      display: none;
+      pointer-events: auto;
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 4px;
+      padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
+      z-index: 25;
+    }
+
+    .touch-btn {
+      width: clamp(54px, 14.5vw, 68px);
+      height: clamp(54px, 14.5vw, 68px);
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.8);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      color: #fff;
+      font-size: clamp(1.4rem, 4vw, 1.8rem);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: none;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      transition: transform 0.08s ease, background 0.08s ease;
+      cursor: pointer;
+    }
+
+    .touch-btn:active, .touch-btn.active {
+      transform: scale(0.92);
+      background: #38bdf8 !important;
+      color: #0f172a !important;
+      border-color: #ffffff !important;
+    }
+
+    /* Always show touch controls on touch screens or screen width <= 1024px */
+    @media (max-width: 1024px), (hover: none) and (pointer: coarse) {
+      .mobile-controls {
+        display: flex;
+      }
+    }
+
+    /* Full Responsive Modal Fix for Mobile (No cut-off) */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100vw;
+      height: 100%;
+      height: 100dvh;
+      min-height: -webkit-fill-available;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: max(10px, env(safe-area-inset-top, 10px)) max(10px, env(safe-area-inset-right, 10px)) max(10px, env(safe-area-inset-bottom, 10px)) max(10px, env(safe-area-inset-left, 10px));
+      box-sizing: border-box;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-box {
+      background: #131c2e;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: clamp(12px, 3.5vw, 22px);
+      max-width: 540px;
+      width: 100%;
+      max-height: calc(100dvh - 20px);
+      max-height: calc(100% - 20px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.6);
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      animation: modalPop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .modal-box .answers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.6rem;
+      margin-top: 0.4rem;
+    }
+
+    .modal-box .answer-card {
+      min-height: clamp(48px, 8.5vh, 64px);
+      padding: 0.6rem 0.8rem;
+      font-size: clamp(0.9rem, 3.2vw, 1.05rem);
+      font-weight: 800;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: transform 0.08s ease, filter 0.08s ease;
+    }
+
+    .modal-box .answer-card:active {
+      transform: scale(0.96);
+      filter: brightness(1.2);
+    }
+
+    @media (max-width: 480px) {
+      .modal-box .answers-grid {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+      .modal-box .answer-card {
+        min-height: 46px;
+        padding: 0.5rem 0.7rem;
+      }
+    }
+
+    /* Mobile specific optimizations */
+    @media (max-width: 600px) {
+      .hud-top {
+        gap: 0.35rem;
+      }
+      .altitude-badge {
+        padding: 0.35rem 0.65rem;
+      }
+      .altitude-val {
+        font-size: 1.4rem;
+      }
+      .energy-gauge-box {
+        min-width: 110px;
+        padding: 0.35rem 0.6rem;
+      }
+      .hud-leaderboard-box {
+        display: none; /* Hide multi-line board on small phones to keep screen clean */
+      }
+      .btn-charge-energy {
+        padding: 0.45rem 0.75rem;
+        font-size: 0.85rem;
+      }
+      .minimap-bar {
+        width: 32px;
+        height: clamp(160px, 32vh, 220px);
+        right: max(6px, env(safe-area-inset-right, 6px));
+      }
+    }
+
+    /* Landscape mode on smartphones */
+    @media (max-height: 520px) {
+      .hud-layer {
+        padding-top: max(4px, env(safe-area-inset-top, 4px));
+      }
+      .altitude-val {
+        font-size: 1.25rem;
+      }
+      .touch-btn {
+        width: clamp(44px, 12vw, 56px);
+        height: clamp(44px, 12vw, 56px);
+        font-size: 1.3rem;
+      }
+      .mobile-controls {
+        padding-bottom: max(8px, env(safe-area-inset-bottom, 8px));
+      }
+      .minimap-bar {
+        height: clamp(120px, 45vh, 180px);
+        width: 28px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Fall Warning Alert -->
+  <div id="fallAlert" class="fall-warning">
+    😱 NOOO! -85m 추락 중!
+  </div>
+
+  <!-- Main Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Heads Up Display (HUD) -->
+  <div class="hud-layer">
+    <!-- Top HUD Bar -->
+    <div class="hud-top">
+      <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <div class="altitude-badge">
+          <div style="display: flex; align-items: baseline; gap: 0.2rem;">
+            <span id="hudAltitude" class="altitude-val">0</span>
+            <span style="font-weight: 800; color: #94a3b8; font-size: 0.95rem;">m</span>
+          </div>
+          <div id="hudSummit" class="summit-val">🌋 Summit 1 (Emberwall)</div>
+        </div>
+
+        <div class="energy-gauge-box">
+          <div style="display: flex; justify-content: space-between; font-size: 0.78rem; font-weight: 700;">
+            <span style="color: #f59e0b;">⚡ 에너지</span>
+            <span id="hudEnergyText" style="color: #ffffff;">1,500</span>
+          </div>
+          <div class="energy-bar-wrap">
+            <div id="hudEnergyBar" class="energy-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Question Button -->
+      <button class="btn-charge-energy" onclick="openQuestionModal()">
+        <span>⚡</span> 충전 [Q]
+      </button>
+
+      <!-- Live Climbers Leaderboard -->
+      <div class="hud-leaderboard-box">
+        <div style="font-size: 0.75rem; font-weight: 800; color: #a5b4fc; margin-bottom: 0.2rem;">
+          🧗 실시간 등반 순위
+        </div>
+        <div id="dldClimbersList" style="display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; font-weight: 700;">
+          <!-- Climbers inserted by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Virtual Controls -->
+    <div class="mobile-controls">
+      <!-- Left / Right Movement -->
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <button type="button" class="touch-btn" id="btnTouchLeft" aria-label="왼쪽 이동">◀</button>
+        <button type="button" class="touch-btn" id="btnTouchRight" aria-label="오른쪽 이동">▶</button>
+      </div>
+
+      <!-- Energy Recharge & Jump -->
+      <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <button type="button" class="touch-btn" style="background: rgba(245, 158, 11, 0.8); border-color: #fef08a; color: #fff;" id="btnTouchQuestion" onclick="openQuestionModal()" aria-label="에너지 충전">⚡</button>
+        <button type="button" class="touch-btn" style="background: rgba(99, 102, 241, 0.85); border-color: #a5b4fc; font-weight: 900;" id="btnTouchJump" aria-label="점프">▲</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vertical Height Minimap -->
+  <div class="minimap-bar">
+    <div style="font-size: 0.65rem; font-weight: 900; color: #f59e0b; margin-bottom: 2px;">🏆1km</div>
+    <div class="minimap-track" id="minimapTrack">
+      <div id="myMinimapPin" class="minimap-pin">🐱</div>
+    </div>
+    <div style="font-size: 0.65rem; font-weight: 800; color: var(--text-muted); margin-top: 2px;">0m</div>
+  </div>
+
+  <!-- In-Game Question Modal ("Energy Rest") -->
+  <div id="dldQuestionModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+        <div style="display: flex; align-items: center; gap: 0.4rem;">
+          <span style="font-size: 1.4rem;">⚡</span>
+          <h2 style="font-size: 1.15rem; font-weight: 800; color: #f59e0b; margin: 0;">에너지 충전소</h2>
+        </div>
+        <button class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.85rem;" onclick="closeQuestionModal()">✕ [닫기]</button>
+      </div>
+
+      <div class="card" style="margin-bottom: 0.6rem; padding: 0.9rem 1rem; text-align: center; background: rgba(15, 23, 42, 0.95); border-color: rgba(245, 158, 11, 0.4);">
+        <p id="dldQText" style="font-size: clamp(1rem, 3.6vw, 1.25rem); font-weight: 800; color: #fff; line-height: 1.35; margin: 0 0 0.4rem;">
+          문제를 불러오는 중입니다...
+        </p>
+        <div id="dldQStreak" style="font-size: 0.8rem; color: #fb923c; font-weight: 700;">
+          정답 시 +1,000 에너지 충전!
+        </div>
+      </div>
+
+      <!-- 4 Answer Buttons -->
+      <div class="answers-grid" id="dldAnswersGrid">
+        <button class="answer-card ans-0" onclick="submitDldAnswer(0)">
+          <span id="dldOpt0">선택지 1</span>
+        </button>
+        <button class="answer-card ans-1" onclick="submitDldAnswer(1)">
+          <span id="dldOpt1">선택지 2</span>
+        </button>
+        <button class="answer-card ans-2" onclick="submitDldAnswer(2)">
+          <span id="dldOpt2">선택지 3</span>
+        </button>
+        <button class="answer-card ans-3" onclick="submitDldAnswer(3)">
+          <span id="dldOpt3">선택지 4</span>
+        </button>
+      </div>
+
+      <div style="margin-top: 0.6rem; text-align: center;">
+        <button class="btn btn-outline" style="width: 100%; padding: 0.55rem; font-size: 0.85rem;" onclick="closeQuestionModal()">
+          등반 계속하기 (ESC 또는 닫기)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Victory Podium Modal (Peak reached) -->
+  <div id="dldVictoryModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-box" style="text-align: center; max-width: 520px; width: 100%;">
+      <div id="resultEmoji" style="font-size: 3.2rem; line-height: 1;">🏁</div>
+      <h1 id="resultTitle" style="font-size: clamp(1.4rem, 5vw, 1.9rem); font-weight: 900; margin: 0.3rem 0; background: linear-gradient(135deg, #f59e0b, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        게임 종료!
+      </h1>
+      <p id="dldVictoryText" style="color: var(--text-muted); font-size: 0.9rem; margin: 0 0 0.8rem;"></p>
+
+      <!-- My result card -->
+      <div id="resultMyCard" style="background: rgba(56, 189, 248, 0.12); border: 2px solid rgba(56, 189, 248, 0.5); border-radius: 14px; padding: 0.7rem 0.8rem; margin-bottom: 0.8rem;">
+        <div style="font-size: 0.8rem; font-weight: 800; color: #38bdf8;">나의 결과</div>
+        <div id="resultMyRank" style="font-size: 1.6rem; font-weight: 900; color: #fff; margin: 0.1rem 0;">-</div>
+        <div id="resultMyStats" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; margin-top: 0.4rem;"></div>
+      </div>
+
+      <!-- Podium Top 3 -->
+      <div id="resultPodium" style="display: flex; justify-content: center; align-items: flex-end; gap: 0.5rem; margin-bottom: 0.8rem;"></div>
+
+      <!-- Full ranking -->
+      <div style="text-align: left; font-size: 0.8rem; font-weight: 800; color: #a5b4fc; margin-bottom: 0.3rem;">🏆 전체 순위</div>
+      <div id="resultRankList" style="max-height: 28vh; overflow-y: auto; text-align: left; display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.9rem;"></div>
+
+      <button class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1.05rem;" onclick="location.href='/'">
+        홈으로 돌아가기 🏠
+      </button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/dld-game.js"></script>
+</body>
+</html>

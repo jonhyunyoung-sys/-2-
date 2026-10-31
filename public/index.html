@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Gimkit Web - 퀴즈 & 머니 배틀</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-glow bg-glow-3"></div>
+
+  <div class="app-container" style="justify-content: center; align-items: center; max-width: 900px;">
+    <!-- Logo / Brand Header -->
+    <div style="text-align: center; margin-bottom: 2.5rem;">
+      <div style="display: inline-flex; align-items: center; gap: 0.8rem; margin-bottom: 0.8rem;">
+        <span style="font-size: 3rem;">⚡</span>
+        <h1 style="font-size: 3.2rem; font-weight: 900; letter-spacing: -1px; background: linear-gradient(135deg, #a5b4fc, #6366f1, #38bdf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          GIMKIT CLONE
+        </h1>
+      </div>
+      <p style="color: var(--text-muted); font-size: 1.15rem; max-width: 500px; margin: 0 auto; line-height: 1.5;">
+        문제를 맞혀 돈을 벌고, 상점에서 업그레이드와 파워업 아이템으로 상대를 얼려보세요!
+      </p>
+    </div>
+
+    <!-- Don't Look Down Mode Special Card -->
+    <div class="card" style="width: 100%; background: linear-gradient(135deg, rgba(2, 132, 199, 0.2), rgba(99, 102, 241, 0.2)); border: 2px solid #38bdf8; padding: 1.6rem; margin-bottom: 2rem; box-shadow: 0 8px 30px rgba(56, 189, 248, 0.25);">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1.2rem;">
+        <div style="max-width: 500px;">
+          <div style="display: inline-flex; align-items: center; gap: 0.4rem; background: #0284c7; color: #fff; font-size: 0.75rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 6px; text-transform: uppercase; margin-bottom: 0.5rem;">
+            HOT NEW MODE
+          </div>
+          <h2 style="font-size: 1.5rem; font-weight: 900; color: #ffffff; display: flex; align-items: center; gap: 0.5rem;">
+            <span>🧗</span> Don't Look Down (아래를 보지 마!)
+          </h2>
+          <p style="color: #cbd5e1; font-size: 0.95rem; margin-top: 0.4rem; line-height: 1.5;">
+            문제를 맞춰 에너지를 충전하고 더블 점프로 <strong>1,000m 정상</strong>을 정복하세요! 6개 테마 서밋, 점프대 버섯, 미끄러운 얼음, 레이저 장애물이 기다립니다. 헛디디면 아래로 곤두박질칩니다!
+          </p>
+        </div>
+
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+          <a href="/dld?gc=311866" class="btn btn-primary" style="background: linear-gradient(135deg, #0284c7, #0369a1); font-weight: 900; padding: 0.9rem 1.4rem;">
+            🧗 지금 바로 등반 플레이!
+          </a>
+          <a href="/host-dld.html" class="btn btn-outline" style="border-color: #38bdf8; color: #38bdf8; font-weight: 800; padding: 0.9rem 1.4rem;">
+            👑 DLD 호스트 화면
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Action Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; width: 100%; margin-bottom: 2rem;">
+      
+      <!-- Join Game Card -->
+      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; border-color: rgba(99, 102, 241, 0.4);">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
+            <span style="font-size: 1.8rem;">🎮</span>
+            <h2 style="font-size: 1.4rem; font-weight: 800;">게임 참여하기</h2>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+            호스트 화면에 표시된 6자리 방 번호를 입력하고 참가하세요.
+          </p>
+
+          <div style="margin-bottom: 1.2rem;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">
+              게임 코드 (GAME CODE)
+            </label>
+            <input type="text" id="joinGameCode" placeholder="예: 311866" maxlength="6"
+              style="width: 100%; padding: 0.9rem 1rem; border-radius: 12px; background: rgba(15, 23, 42, 0.9); border: 2px solid var(--border); color: #fff; font-size: 1.4rem; font-weight: 900; text-align: center; letter-spacing: 4px; outline: none; transition: border-color 0.2s;"
+              onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border)'"
+              value="311866" />
+          </div>
+        </div>
+
+        <button class="btn btn-primary" style="width: 100%; padding: 0.95rem; font-size: 1.1rem;" onclick="goToJoin()">
+          입장하기 →
+        </button>
+      </div>
+
+      <!-- Host Game Card -->
+      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; border-color: rgba(16, 185, 129, 0.4);">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
+            <span style="font-size: 1.8rem;">👑</span>
+            <h2 style="font-size: 1.4rem; font-weight: 800;">방 만들기 (호스트)</h2>
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 1.5rem;">
+            대형 스크린 리더보드를 띄우고, 시간 제한 또는 목표 금액 레이스를 진행하세요.
+          </p>
+          <div style="background: rgba(15, 23, 42, 0.6); padding: 0.8rem; border-radius: 10px; border: 1px solid var(--border); font-size: 0.85rem; color: #a78bfa; margin-bottom: 1.2rem;">
+            ✨ AI 봇 대결 지원, 커스텀 퀴즈 세트, 실시간 순위 그래프 완비
+          </div>
+        </div>
+
+        <a href="/host.html" class="btn btn-success" style="width: 100%; padding: 0.95rem; font-size: 1.1rem;">
+          호스트 화면 열기 📺
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Quick Solo Practice Button -->
+    <div class="card" style="width: 100%; background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15)); border-color: rgba(99, 102, 241, 0.4); text-align: center; padding: 1.4rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: gap; gap: 1rem;">
+        <div style="text-align: left;">
+          <h3 style="font-size: 1.15rem; font-weight: 800; display: flex; align-items: center; gap: 0.5rem;">
+            <span>🤖</span> 혼자서 바로 플레이해보기 (솔로 봇 모드)
+          </h3>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">
+            기다릴 필요 없이 똑똑한 AI 봇 4명과 함께 3분간 머니 레이스를 즉시 시작합니다.
+          </p>
+        </div>
+        <button class="btn btn-primary" onclick="startQuickSolo()" id="btnSolo" style="white-space: nowrap;">
+          즉시 1인 플레이 시작 ⚡
+        </button>
+      </div>
+    </div>
+
+    <!-- Gimkit Feature Highlights -->
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; width: 100%; margin-top: 1rem;">
+      <div style="background: rgba(19, 28, 46, 0.5); padding: 1rem; border-radius: 14px; border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 1.6rem; margin-bottom: 0.3rem;">💰</div>
+        <div style="font-weight: 700; font-size: 0.95rem;">자율 퀴즈 & 머니</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">내 속도대로 풀고 돈을 모으세요.</div>
+      </div>
+      <div style="background: rgba(19, 28, 46, 0.5); padding: 1rem; border-radius: 14px; border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 1.6rem; margin-bottom: 0.3rem;">🛒</div>
+        <div style="font-weight: 700; font-size: 0.95rem;">상점 업그레이드</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">배율, 연승 보너스, 보험 강화!</div>
+      </div>
+      <div style="background: rgba(19, 28, 46, 0.5); padding: 1rem; border-radius: 14px; border: 1px solid var(--border); text-align: center;">
+        <div style="font-size: 1.6rem; margin-bottom: 0.3rem;">🧊</div>
+        <div style="font-weight: 700; font-size: 0.95rem;">파워업 & 아이템</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">상대 얼리기, 쉴드, 메가 복권!</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/sound.js"></script>
+  <script>
+    function goToJoin() {
+      const code = document.getElementById('joinGameCode').value.trim();
+      if (!code) {
+        alert('게임 코드를 입력해주세요!');
+        return;
+      }
+      window.location.href = `/join?gc=${code}`;
+    }
+
+    // 1-Click Quick Solo Game Creator
+    function startQuickSolo() {
+      const btn = document.getElementById('btnSolo');
+      btn.disabled = true;
+      btn.innerText = '방 생성 중...';
+
+      const socket = io();
+      const soloCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      socket.emit('create-room', {
+        customCode: soloCode,
+        config: {
+          mode: 'time',
+          timeLimitSeconds: 180, // 3 min fast solo match
+          quizSetId: 'general'
+        }
+      }, (res) => {
+        if (!res.success) {
+          alert('솔로 모드 생성 실패: ' + res.error);
+          btn.disabled = false;
+          btn.innerText = '즉시 1인 플레이 시작 ⚡';
+          return;
+        }
+
+        // Add 3 AI Bots
+        let botsAdded = 0;
+        const addNextBot = () => {
+          if (botsAdded < 3) {
+            socket.emit('add-bot', { code: soloCode }, () => {
+              botsAdded++;
+              addNextBot();
+            });
+          } else {
+            // Store solo host indicator and redirect player
+            sessionStorage.setItem('soloHostCode', soloCode);
+            window.location.href = `/join?gc=${soloCode}&autoStart=1`;
+          }
+        };
+        addNextBot();
+      });
+    }
+
+    // Allow Enter key on join code input
+    document.getElementById('joinGameCode').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') goToJoin();
+    });
+  </script>
+</body>
+</html>
