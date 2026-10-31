@@ -93,6 +93,11 @@ let myPlayerId = null;
 let currentQuestion = null;
 let syncInterval = null;
 let roomConfig = null;
+let teams = {};
+let isTeamMode = false;
+let myTeamId = null;
+let currentLeaderboard = [];
+let currentTeamLeaderboard = [];
 
 function applyRoomConfig() {
   if (!roomConfig || !roomConfig.dldSettings) return;
@@ -373,9 +378,13 @@ function joinDldRoom() {
       roomConfig = res.config;
       applyRoomConfig();
     }
+    if (res.teams) teams = res.teams;
+    if (res.isTeamMode !== undefined) isTeamMode = res.isTeamMode;
     if (res.player) {
       player.energy = res.player.energy || 1500;
+      if (res.player.teamId) myTeamId = res.player.teamId;
     }
+    updateHUD();
 
     // Request first question
     if (res.currentQuestion) {
@@ -434,12 +443,36 @@ function joinDldRoom() {
     resetToStart();
   });
 
+  // Team updates from host
+  socket.on('teams-updated', (data) => {
+    if (data.isTeamMode !== undefined) isTeamMode = !!data.isTeamMode;
+    if (data.teams) teams = data.teams;
+    if (data.players) {
+      const me = data.players.find(p => p.id === myPlayerId || p.name === player.name);
+      if (me) myTeamId = me.teamId;
+      data.players.forEach(p => {
+        if (otherPlayers[p.id]) otherPlayers[p.id].teamId = p.teamId;
+      });
+    }
+    updateHUD();
+  });
+
   socket.on('game-ended', (report) => {
     showResultModal(report);
   });
 
-  socket.on('leaderboard-updated', (lb) => {
+  socket.on('leaderboard-updated', (data) => {
+    const lb = Array.isArray(data) ? data : (data.leaderboard || []);
+    const teamLb = data.teamLeaderboard || [];
+    if (data.isTeamMode !== undefined) isTeamMode = !!data.isTeamMode;
+    currentLeaderboard = lb;
+    currentTeamLeaderboard = teamLb;
+
+    const me = lb.find(p => p.id === myPlayerId || p.name === player.name);
+    if (me && me.teamId) myTeamId = me.teamId;
+
     updateClimbersFromLeaderboard(lb);
+    updateHUD();
   });
 }
 
@@ -1038,6 +1071,20 @@ function updateHUD() {
   const trackHeight = 350;
   const pinTop = trackHeight - (player.altitude / 1000) * trackHeight;
   pin.style.top = `${pinTop}px`;
+
+  // Team HUD Badge
+  const teamBadge = document.getElementById('hudTeamBadge');
+  if (teamBadge) {
+    if (isTeamMode && myTeamId && teams[myTeamId]) {
+      const t = teams[myTeamId];
+      teamBadge.innerText = `${t.emoji || '🚩'} ${t.name}`;
+      teamBadge.style.borderColor = t.color || '#38bdf8';
+      teamBadge.style.color = t.color || '#fff';
+      teamBadge.style.display = 'block';
+    } else {
+      teamBadge.style.display = 'none';
+    }
+  }
 }
 
 function updateClimbersHUD() {
@@ -1873,9 +1920,11 @@ function renderOtherPlayers() {
     ctx.textBaseline = 'middle';
     ctx.fillText(op.avatar || '🤖', op.x + 16, op.y + 18);
 
+    const opTeam = (isTeamMode && op.teamId && teams[op.teamId]) ? teams[op.teamId] : null;
+    const opTag = opTeam ? `[${opTeam.emoji || '🚩'}${opTeam.name}] ` : '';
     ctx.font = 'bold 10px sans-serif';
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillText(`${op.name || '경쟁자'} [${op.altitude || 0}m]`, op.x + 16, op.y - 10);
+    ctx.fillStyle = opTeam ? (opTeam.color || '#cbd5e1') : '#cbd5e1';
+    ctx.fillText(`${opTag}${op.name || '경쟁자'} [${op.altitude || 0}m]`, op.x + 16, op.y - 10);
     ctx.restore();
   }
 }
@@ -1940,11 +1989,13 @@ function renderPlayer() {
 
   // E. Name Tag & Altitude HUD above head
   ctx.font = 'bold 11px sans-serif';
-  ctx.fillStyle = '#38bdf8';
+  const myTeam = (isTeamMode && myTeamId && teams[myTeamId]) ? teams[myTeamId] : null;
+  const myTag = myTeam ? `[${myTeam.emoji || '🚩'}${myTeam.name}] ` : '';
+  ctx.fillStyle = myTeam ? (myTeam.color || '#38bdf8') : '#38bdf8';
   ctx.textAlign = 'center';
   ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
   ctx.shadowBlur = 4;
-  ctx.fillText(`${player.name} [${player.altitude}m]`, pCenterX, player.y - 12);
+  ctx.fillText(`${myTag}${player.name} [${player.altitude}m]`, pCenterX, player.y - 12);
   ctx.shadowBlur = 0;
 }
 
@@ -2142,11 +2193,25 @@ function showResultModal(report) {
   const me = myIdx >= 0 ? board[myIdx] : null;
   const total = board.length;
 
+  const isTeam = !!(report && report.isTeamMode && report.teamLeaderboard && report.teamLeaderboard.length > 0);
+  const teamBoard = isTeam ? report.teamLeaderboard : [];
+  let myTeamIdx = isTeam ? teamBoard.findIndex(t => t.id === myTeamId || (t.members && t.members.some(m => m.id === myPlayerId || m.name === player.name))) : -1;
+  const myTeam = myTeamIdx >= 0 ? teamBoard[myTeamIdx] : null;
+
   // Title / emoji by rank
   const medals = ['🥇', '🥈', '🥉'];
   const emojiEl = document.getElementById('resultEmoji');
   const titleEl = document.getElementById('resultTitle');
-  if (me && myIdx === 0) {
+
+  if (isTeam && myTeam) {
+    if (myTeamIdx === 0) {
+      emojiEl.innerText = '🏆';
+      titleEl.innerText = `우리 팀 우승! 🎉 ${myTeam.emoji || '🚩'} ${myTeam.name} 1위!`;
+    } else {
+      emojiEl.innerText = medals[myTeamIdx] || '🏁';
+      titleEl.innerText = `${myTeam.emoji || '🚩'} ${myTeam.name} (${myTeamIdx + 1}위 / ${teamBoard.length}개 조)`;
+    }
+  } else if (me && myIdx === 0) {
     emojiEl.innerText = '🏆';
     titleEl.innerText = '우승! 정상에 가장 가까웠어요!';
   } else if (me && myIdx < 3) {
@@ -2160,8 +2225,10 @@ function showResultModal(report) {
 
   // My result card
   const myAlt = me ? me.altitude : player.altitude;
-  document.getElementById('resultMyRank').innerText =
-    me ? `${myIdx + 1}위 / ${total}명 · ${myAlt.toLocaleString()}m` : `${myAlt.toLocaleString()}m`;
+  const rankLabel = isTeam && myTeam
+    ? `우리 팀 ${myTeamIdx + 1}위 (총 ${myTeam.totalAltitude}m) · 개인 ${myAlt.toLocaleString()}m`
+    : (me ? `${myIdx + 1}위 / ${total}명 · ${myAlt.toLocaleString()}m` : `${myAlt.toLocaleString()}m`);
+  document.getElementById('resultMyRank').innerText = rankLabel;
 
   const stat = (label, value) => `
     <div style="background: rgba(15,23,42,0.7); border-radius: 10px; padding: 0.35rem 0.2rem;">
@@ -2169,45 +2236,77 @@ function showResultModal(report) {
       <div style="font-size: 1rem; font-weight: 900; color: #fff;">${value}</div>
     </div>`;
   document.getElementById('resultMyStats').innerHTML = [
-    stat('⛰️ 고도', `${myAlt}m`),
+    stat('⛰️ 내 고도', `${myAlt}m`),
     stat('✅ 정답', me ? me.correctCount : 0),
     stat('❌ 오답', me ? me.wrongCount : 0),
     stat('😱 추락', me ? me.falls : 0)
   ].join('');
 
   // Podium (1st in the middle)
-  const top = board.slice(0, 3);
   const order = [1, 0, 2]; // 2nd, 1st, 3rd
   const heights = { 0: 92, 1: 72, 2: 56 };
   const colors = { 0: '#f59e0b', 1: '#94a3b8', 2: '#b45309' };
-  document.getElementById('resultPodium').innerHTML = order
-    .filter(i => top[i])
-    .map(i => {
-      const p = top[i];
+
+  if (isTeam) {
+    const topTeams = teamBoard.slice(0, 3);
+    document.getElementById('resultPodium').innerHTML = order
+      .filter(i => topTeams[i])
+      .map(i => {
+        const t = topTeams[i];
+        return `
+          <div style="flex: 1; max-width: 120px; text-align: center;">
+            <div style="font-size: 1.7rem;">${t.emoji || '🚩'}</div>
+            <div style="font-size: 0.75rem; font-weight: 800; color: ${t.color || '#fff'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(t.name)}</div>
+            <div style="font-size: 0.7rem; color: #38bdf8; font-weight: 800;">총 ${t.totalAltitude}m</div>
+            <div style="height: ${heights[i]}px; background: linear-gradient(180deg, ${colors[i]}, rgba(15,23,42,0.6)); border-radius: 10px 10px 0 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 4px; font-size: 1.4rem;">${medals[i]}</div>
+          </div>`;
+      }).join('');
+
+    // Team Ranking List
+    document.getElementById('resultRankList').innerHTML = teamBoard.map((t, idx) => {
+      const isMyTeam = (t.id === myTeamId) || (myTeam && t.id === myTeam.id);
       return `
-        <div style="flex: 1; max-width: 120px; text-align: center;">
-          <div style="font-size: 1.7rem;">${escapeHtml(p.avatar)}</div>
-          <div style="font-size: 0.75rem; font-weight: 800; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.name)}</div>
-          <div style="font-size: 0.7rem; color: #38bdf8; font-weight: 800;">${p.altitude}m</div>
-          <div style="height: ${heights[i]}px; background: linear-gradient(180deg, ${colors[i]}, rgba(15,23,42,0.6)); border-radius: 10px 10px 0 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 4px; font-size: 1.4rem;">${medals[i]}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 10px; background: ${isMyTeam ? 'rgba(52,211,153,0.18)' : 'rgba(15,23,42,0.6)'}; border: 1px solid ${isMyTeam ? '#34d399' : 'transparent'};">
+          <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <span style="font-weight: 900; color: ${t.color || '#e2e8f0'};">
+              ${idx + 1}. ${t.emoji || '🚩'} ${escapeHtml(t.name)}${isMyTeam ? ' (우리 팀)' : ''}
+            </span>
+            <span style="font-size: 0.72rem; color: #94a3b8; margin-left: 0.4rem;">(${t.memberCount}명)</span>
+          </div>
+          <span style="font-weight: 900; color: #38bdf8; white-space: nowrap;">총 ${t.totalAltitude}m (평균 ${t.avgAltitude}m)</span>
         </div>`;
     }).join('');
+  } else {
+    const top = board.slice(0, 3);
+    document.getElementById('resultPodium').innerHTML = order
+      .filter(i => top[i])
+      .map(i => {
+        const p = top[i];
+        return `
+          <div style="flex: 1; max-width: 120px; text-align: center;">
+            <div style="font-size: 1.7rem;">${escapeHtml(p.avatar)}</div>
+            <div style="font-size: 0.75rem; font-weight: 800; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.name)}</div>
+            <div style="font-size: 0.7rem; color: #38bdf8; font-weight: 800;">${p.altitude}m</div>
+            <div style="height: ${heights[i]}px; background: linear-gradient(180deg, ${colors[i]}, rgba(15,23,42,0.6)); border-radius: 10px 10px 0 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 4px; font-size: 1.4rem;">${medals[i]}</div>
+          </div>`;
+      }).join('');
 
-  // Full ranking
-  document.getElementById('resultRankList').innerHTML = board.map((p, idx) => {
-    const isMe = idx === myIdx;
-    return `
-      <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; border-radius: 10px; background: ${isMe ? 'rgba(52,211,153,0.18)' : 'rgba(15,23,42,0.6)'}; border: 1px solid ${isMe ? '#34d399' : 'transparent'};">
-        <span style="font-weight: 800; color: ${isMe ? '#34d399' : '#e2e8f0'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-          ${idx + 1}. ${escapeHtml(p.avatar)} ${escapeHtml(p.name)}${isMe ? ' (나)' : ''}
-        </span>
-        <span style="font-weight: 900; color: #38bdf8; white-space: nowrap;">${p.altitude}m</span>
-      </div>`;
-  }).join('');
+    // Full ranking
+    document.getElementById('resultRankList').innerHTML = board.map((p, idx) => {
+      const isMe = idx === myIdx;
+      return `
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.35rem 0.6rem; border-radius: 10px; background: ${isMe ? 'rgba(52,211,153,0.18)' : 'rgba(15,23,42,0.6)'}; border: 1px solid ${isMe ? '#34d399' : 'transparent'};">
+          <span style="font-weight: 800; color: ${isMe ? '#34d399' : '#e2e8f0'}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            ${idx + 1}. ${escapeHtml(p.avatar)} ${escapeHtml(p.name)}${isMe ? ' (나)' : ''}
+          </span>
+          <span style="font-weight: 900; color: #38bdf8; white-space: nowrap;">${p.altitude}m</span>
+        </div>`;
+    }).join('');
+  }
 
   document.getElementById('dldVictoryModal').style.display = 'flex';
   try { window.soundEngine.playWin(); } catch (e) {}
-  if (typeof confetti === 'function' && me && myIdx < 3) {
+  if (typeof confetti === 'function' && ((isTeam && myTeamIdx === 0) || (!isTeam && me && myIdx < 3))) {
     confetti({ particleCount: 150, spread: 80 });
   }
 }

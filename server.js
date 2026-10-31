@@ -275,6 +275,16 @@ function generateRoomCode() {
 const BOT_NAMES = ['스마트봇 🤖', '알파고 🧠', '번개토끼 ⚡', '열공냥이 🐱', '퀴즈마스터 👑', '럭키스타 🌟', '치타 🐆'];
 const AVATARS = ['🐱', '🐶', '🦊', '🐼', '🐨', '🦁', '🚀', '🤖', '👾', '👑', '⚡', '🔥'];
 
+// Default Team Presets
+const DEFAULT_TEAMS = [
+  { id: 'team_1', name: '1조 (레드)', color: '#ef4444', emoji: '🔴' },
+  { id: 'team_2', name: '2조 (블루)', color: '#3b82f6', emoji: '🔵' },
+  { id: 'team_3', name: '3조 (그린)', color: '#10b981', emoji: '🟢' },
+  { id: 'team_4', name: '4조 (옐로)', color: '#f59e0b', emoji: '🟡' },
+  { id: 'team_5', name: '5조 (퍼플)', color: '#8b5cf6', emoji: '🟣' },
+  { id: 'team_6', name: '6조 (오렌지)', color: '#f97316', emoji: '🟠' }
+];
+
 class GameRoom {
   constructor(code, hostSocketId) {
     this.code = code;
@@ -286,6 +296,7 @@ class GameRoom {
       timeLimitSeconds: 600, // 10 min default
       targetBalance: 10000, // for classic race mode
       quizSetId: 'joseon-early',
+      isTeamMode: false,
       dldSettings: {
         difficulty: 'normal',
         energyGain: 1000,
@@ -300,6 +311,12 @@ class GameRoom {
     this.players = {}; // playerId -> player
     this.eventLogs = [];
     this.botIntervals = [];
+
+    // Teams state
+    this.teams = {
+      'team_1': { ...DEFAULT_TEAMS[0] },
+      'team_2': { ...DEFAULT_TEAMS[1] }
+    };
   }
 
   addPlayer(id, name, avatar, socketId = null, isBot = false) {
@@ -309,6 +326,7 @@ class GameRoom {
       avatar: avatar || '🐱',
       socketId,
       isBot,
+      teamId: null,
       balance: 0,
       streak: 0,
       altitude: 0,
@@ -343,27 +361,184 @@ class GameRoom {
 
   removePlayer(id) {
     delete this.players[id];
+    this.broadcastTeams();
+  }
+
+  // Team Management Methods
+  setTeamMode(enabled) {
+    this.config.isTeamMode = !!enabled;
+    if (this.config.isTeamMode && Object.keys(this.teams).length === 0) {
+      this.teams['team_1'] = { ...DEFAULT_TEAMS[0] };
+      this.teams['team_2'] = { ...DEFAULT_TEAMS[1] };
+    }
+    this.broadcastTeams();
+    this.broadcastLeaderboard();
+  }
+
+  createTeam(name, color, emoji) {
+    const nextIdx = Object.keys(this.teams).length + 1;
+    const defaultT = DEFAULT_TEAMS[(nextIdx - 1) % DEFAULT_TEAMS.length];
+    const teamId = 'team_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5);
+    const newTeam = {
+      id: teamId,
+      name: name || `${nextIdx}조`,
+      color: color || defaultT.color,
+      emoji: emoji || defaultT.emoji
+    };
+    this.teams[teamId] = newTeam;
+    this.broadcastTeams();
+    this.broadcastLeaderboard();
+    return newTeam;
+  }
+
+  removeTeam(teamId) {
+    delete this.teams[teamId];
+    for (const p of Object.values(this.players)) {
+      if (p.teamId === teamId) p.teamId = null;
+    }
+    this.broadcastTeams();
+    this.broadcastLeaderboard();
+  }
+
+  updateTeam(teamId, { name, color, emoji }) {
+    if (this.teams[teamId]) {
+      if (name) this.teams[teamId].name = name;
+      if (color) this.teams[teamId].color = color;
+      if (emoji) this.teams[teamId].emoji = emoji;
+      this.broadcastTeams();
+      this.broadcastLeaderboard();
+    }
+  }
+
+  assignPlayerToTeam(playerId, teamId) {
+    const player = this.players[playerId];
+    if (player) {
+      player.teamId = (teamId && this.teams[teamId]) ? teamId : null;
+      this.broadcastTeams();
+      this.broadcastLeaderboard();
+    }
+  }
+
+  autoAssignTeams(teamCount = 2) {
+    const count = Math.max(2, Math.min(6, parseInt(teamCount, 10) || 2));
+    this.config.isTeamMode = true;
+    this.teams = {};
+    for (let i = 0; i < count; i++) {
+      const dt = DEFAULT_TEAMS[i % DEFAULT_TEAMS.length];
+      this.teams[dt.id] = { ...dt };
+    }
+
+    const teamIds = Object.keys(this.teams);
+    const pList = Object.values(this.players);
+    for (let i = pList.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pList[i], pList[j]] = [pList[j], pList[i]];
+    }
+
+    pList.forEach((p, idx) => {
+      p.teamId = teamIds[idx % teamIds.length];
+    });
+
+    this.broadcastTeams();
+    this.broadcastLeaderboard();
+  }
+
+  broadcastTeams() {
+    io.to(this.code).emit('teams-updated', {
+      isTeamMode: !!this.config.isTeamMode,
+      teams: this.teams,
+      players: Object.values(this.players).map(p => ({
+        id: p.id,
+        name: p.name,
+        avatar: p.avatar,
+        teamId: p.teamId,
+        isBot: p.isBot
+      }))
+    });
+  }
+
+  getTeamLeaderboard() {
+    const teamStats = {};
+    for (const [tId, t] of Object.entries(this.teams)) {
+      teamStats[tId] = {
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        emoji: t.emoji,
+        members: [],
+        totalAltitude: 0,
+        avgAltitude: 0,
+        maxAltitude: 0,
+        totalBalance: 0,
+        avgBalance: 0,
+        correctCount: 0
+      };
+    }
+
+    for (const p of Object.values(this.players)) {
+      if (p.teamId && teamStats[p.teamId]) {
+        const ts = teamStats[p.teamId];
+        const alt = p.altitude || 0;
+        ts.members.push({
+          id: p.id,
+          name: p.name,
+          avatar: p.avatar,
+          altitude: alt,
+          balance: p.balance || 0,
+          isBot: p.isBot
+        });
+        ts.totalAltitude += alt;
+        if (alt > ts.maxAltitude) ts.maxAltitude = alt;
+        ts.totalBalance += (p.balance || 0);
+        ts.correctCount += (p.stats.correct || 0);
+      }
+    }
+
+    const results = Object.values(teamStats).map(t => {
+      const count = t.members.length;
+      t.memberCount = count;
+      t.avgAltitude = count > 0 ? Math.round(t.totalAltitude / count) : 0;
+      t.avgBalance = count > 0 ? Math.round(t.totalBalance / count) : 0;
+      return t;
+    });
+
+    results.sort((a, b) => {
+      if (this.config.gameType === 'dont-look-down') {
+        if (b.totalAltitude !== a.totalAltitude) return b.totalAltitude - a.totalAltitude;
+        return b.avgAltitude - a.avgAltitude;
+      }
+      return b.totalBalance - a.totalBalance;
+    });
+
+    return results;
   }
 
   getLeaderboard() {
     return Object.values(this.players)
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        avatar: p.avatar,
-        balance: Math.round(p.balance),
-        streak: p.streak,
-        altitude: Math.round(p.altitude || 0),
-        summit: p.summit || 1,
-        energy: Math.round(p.energy || 0),
-        falls: p.falls || 0,
-        isFrozen: p.status.isFrozen && Date.now() < p.status.frozenUntil,
-        hasShield: p.status.hasShield,
-        multiplier: UPGRADES.multiplier[p.upgrades.multiplier - 1].value,
-        correctCount: p.stats.correct,
-        wrongCount: p.stats.wrong,
-        isBot: p.isBot
-      }))
+      .map(p => {
+        const team = p.teamId && this.teams[p.teamId] ? this.teams[p.teamId] : null;
+        return {
+          id: p.id,
+          name: p.name,
+          avatar: p.avatar,
+          teamId: p.teamId || null,
+          teamName: team ? team.name : '',
+          teamColor: team ? team.color : '',
+          teamEmoji: team ? team.emoji : '',
+          balance: Math.round(p.balance),
+          streak: p.streak,
+          altitude: Math.round(p.altitude || 0),
+          summit: p.summit || 1,
+          energy: Math.round(p.energy || 0),
+          falls: p.falls || 0,
+          isFrozen: p.status.isFrozen && Date.now() < p.status.frozenUntil,
+          hasShield: p.status.hasShield,
+          multiplier: UPGRADES.multiplier[p.upgrades.multiplier - 1].value,
+          correctCount: p.stats.correct,
+          wrongCount: p.stats.wrong,
+          isBot: p.isBot
+        };
+      })
       .sort((a, b) => {
         if (this.config.gameType === 'dont-look-down') {
           return b.altitude - a.altitude;
@@ -797,7 +972,12 @@ class GameRoom {
 
   broadcastLeaderboard() {
     const lb = this.getLeaderboard();
-    io.to(this.code).emit('leaderboard-updated', lb);
+    const teamLb = this.config.isTeamMode ? this.getTeamLeaderboard() : [];
+    io.to(this.code).emit('leaderboard-updated', {
+      leaderboard: lb,
+      teamLeaderboard: teamLb,
+      isTeamMode: !!this.config.isTeamMode
+    });
   }
 
   endGame(reason = '게임이 종료되었습니다.') {
@@ -811,10 +991,14 @@ class GameRoom {
     this.clearBots();
 
     const leaderboard = this.getLeaderboard();
+    const teamLeaderboard = this.config.isTeamMode ? this.getTeamLeaderboard() : [];
     const finalReport = {
       reason,
       leaderboard,
+      teamLeaderboard,
+      isTeamMode: !!this.config.isTeamMode,
       podium: leaderboard.slice(0, 3),
+      teamPodium: teamLeaderboard.slice(0, 3),
       totalPlayers: leaderboard.length
     };
 
@@ -862,6 +1046,8 @@ io.on('connection', (socket) => {
       success: true,
       code,
       config: room.config,
+      isTeamMode: !!room.config.isTeamMode,
+      teams: room.teams,
       quizSets: Object.keys(quizSets).map(k => ({ id: k, name: quizSets[k].name }))
     });
   });
@@ -873,6 +1059,50 @@ io.on('connection', (socket) => {
       room.config = { ...room.config, ...config };
       room.remainingTime = room.config.timeLimitSeconds;
       io.to(code).emit('room-config-updated', room.config);
+    }
+  });
+
+  // Host: Team Management Events
+  socket.on('set-team-mode', ({ code, enabled }) => {
+    const room = rooms[code];
+    if (room && room.status === 'lobby') {
+      room.setTeamMode(enabled);
+    }
+  });
+
+  socket.on('create-team', ({ code, name, color, emoji }, callback) => {
+    const room = rooms[code];
+    if (room && room.status === 'lobby') {
+      const team = room.createTeam(name, color, emoji);
+      if (callback) callback({ success: true, team });
+    }
+  });
+
+  socket.on('remove-team', ({ code, teamId }) => {
+    const room = rooms[code];
+    if (room && room.status === 'lobby') {
+      room.removeTeam(teamId);
+    }
+  });
+
+  socket.on('update-team', ({ code, teamId, data }) => {
+    const room = rooms[code];
+    if (room && room.status === 'lobby') {
+      room.updateTeam(teamId, data);
+    }
+  });
+
+  socket.on('assign-player-team', ({ code, playerId, teamId }) => {
+    const room = rooms[code];
+    if (room && room.status === 'lobby') {
+      room.assignPlayerToTeam(playerId, teamId);
+    }
+  });
+
+  socket.on('auto-assign-teams', ({ code, teamCount }) => {
+    const room = rooms[code];
+    if (room && room.status === 'lobby') {
+      room.autoAssignTeams(teamCount);
     }
   });
 
@@ -984,10 +1214,13 @@ io.on('connection', (socket) => {
       playerId: pId,
       roomStatus: room.status,
       config: room.config,
+      isTeamMode: !!room.config.isTeamMode,
+      teams: room.teams,
       player: {
         id: player.id,
         name: player.name,
         avatar: player.avatar,
+        teamId: player.teamId,
         altitude: player.altitude || 0,
         energy: player.energy || 1500,
         summit: player.summit || 1,
