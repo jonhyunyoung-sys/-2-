@@ -61,6 +61,9 @@ app.get('/join', (req, res) => {
   if (mode === 'dld') {
     return res.sendFile(path.join(__dirname, 'public', 'dont-look-down.html'));
   }
+  if (mode === 'doom') {
+    return res.sendFile(path.join(__dirname, 'public', 'doom.html'));
+  }
   if (mode === 'classic') {
     return res.sendFile(path.join(__dirname, 'public', 'play.html'));
   }
@@ -69,6 +72,8 @@ app.get('/join', (req, res) => {
   if (code && rooms[code]) {
     if (rooms[code].config && rooms[code].config.gameType === 'classic') {
       return res.sendFile(path.join(__dirname, 'public', 'play.html'));
+    } else if (rooms[code].config && rooms[code].config.gameType === 'doom') {
+      return res.sendFile(path.join(__dirname, 'public', 'doom.html'));
     } else {
       return res.sendFile(path.join(__dirname, 'public', 'dont-look-down.html'));
     }
@@ -86,6 +91,16 @@ app.get('/dld', (req, res) => {
 // Route for Don't Look Down Host
 app.get('/host-dld', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'host-dld.html'));
+});
+
+// Route for Doom 3D Quiz Fortress
+app.get('/doom', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'doom.html'));
+});
+
+// Route for Doom 3D Host
+app.get('/host-doom', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'host-doom.html'));
 });
 
 // Get local server info (IP, port, join links)
@@ -291,7 +306,7 @@ class GameRoom {
     this.hostSocketId = hostSocketId;
     this.status = 'lobby'; // 'lobby' | 'playing' | 'ended'
     this.config = {
-      gameType: 'dont-look-down', // 'dont-look-down' (default) | 'classic'
+      gameType: 'dont-look-down', // 'dont-look-down' (default) | 'classic' | 'doom'
       mode: 'race', // 'race' or 'time'
       timeLimitSeconds: 600, // 10 min default
       targetBalance: 10000, // for classic race mode
@@ -304,6 +319,14 @@ class GameRoom {
         gemRate: 0.45,
         updraftRate: 0.10,
         startingEnergy: 1500
+      },
+      doomSettings: {
+        difficulty: 'normal',
+        targetKills: 25,
+        bossHealth: 1000,
+        currentBossHealth: 1000,
+        ammoGain: 40,
+        healthGain: 25
       }
     };
     this.remainingTime = 300;
@@ -338,6 +361,14 @@ class GameRoom {
       energy: 1500,
       summit: 1,
       falls: 0,
+      health: 100,
+      armor: 50,
+      ammo: 50,
+      kills: 0,
+      score: 0,
+      doomX: 2.5,
+      doomY: 2.5,
+      doomAngle: 0,
       stats: {
         correct: 0,
         wrong: 0,
@@ -496,6 +527,8 @@ class GameRoom {
         ts.totalAltitude += alt;
         if (alt > ts.maxAltitude) ts.maxAltitude = alt;
         ts.totalBalance += (p.balance || 0);
+        ts.totalKills = (ts.totalKills || 0) + (p.kills || 0);
+        ts.totalScore = (ts.totalScore || 0) + (p.score || 0);
         ts.correctCount += (p.stats.correct || 0);
       }
     }
@@ -505,6 +538,7 @@ class GameRoom {
       t.memberCount = count;
       t.avgAltitude = count > 0 ? Math.round(t.totalAltitude / count) : 0;
       t.avgBalance = count > 0 ? Math.round(t.totalBalance / count) : 0;
+      t.avgKills = count > 0 ? Math.round((t.totalKills || 0) / count) : 0;
       return t;
     });
 
@@ -512,6 +546,10 @@ class GameRoom {
       if (this.config.gameType === 'dont-look-down') {
         if (b.totalAltitude !== a.totalAltitude) return b.totalAltitude - a.totalAltitude;
         return b.avgAltitude - a.avgAltitude;
+      }
+      if (this.config.gameType === 'doom') {
+        if ((b.totalKills || 0) !== (a.totalKills || 0)) return (b.totalKills || 0) - (a.totalKills || 0);
+        return (b.totalScore || 0) - (a.totalScore || 0);
       }
       return b.totalBalance - a.totalBalance;
     });
@@ -542,6 +580,11 @@ class GameRoom {
           summit: p.summit || 1,
           energy: Math.round(p.energy || 0),
           falls: p.falls || 0,
+          health: p.health !== undefined ? p.health : 100,
+          armor: p.armor !== undefined ? p.armor : 50,
+          ammo: p.ammo !== undefined ? p.ammo : 50,
+          kills: p.kills || 0,
+          score: p.score || 0,
           isFrozen: p.status.isFrozen && Date.now() < p.status.frozenUntil,
           hasShield: p.status.hasShield,
           multiplier: UPGRADES.multiplier[p.upgrades.multiplier - 1].value,
@@ -555,6 +598,10 @@ class GameRoom {
       .sort((a, b) => {
         if (this.config.gameType === 'dont-look-down') {
           return b.altitude - a.altitude;
+        }
+        if (this.config.gameType === 'doom') {
+          if ((b.kills || 0) !== (a.kills || 0)) return (b.kills || 0) - (a.kills || 0);
+          return (b.score || 0) - (a.score || 0);
         }
         return b.balance - a.balance;
       });
@@ -630,14 +677,83 @@ class GameRoom {
     // Start Bots
     if (this.config.gameType === 'dont-look-down') {
       this.startDldBots();
+    } else if (this.config.gameType === 'doom') {
+      this.startDoomBots();
     } else {
       this.startBots();
     }
 
     const startMsg = (this.config.gameType === 'dont-look-down') 
       ? '🧗 Don\'t Look Down! 1,000m 정상을 향해 등반을 시작합니다! 아래를 보지 마세요!' 
+      : (this.config.gameType === 'doom')
+      ? '🔥 DOOM 3D: 배움의 던전 개방! 몬스터를 처치하고 퀴즈를 풀어 던전을 정복하세요!'
       : '🚀 게임이 시작되었습니다! 부자가 되어보세요!';
     this.addEventLog(startMsg, '🎉');
+  }
+
+  startDoomBots() {
+    this.clearBots();
+    const bots = Object.values(this.players).filter(p => p.isBot);
+    for (const bot of bots) {
+      bot.kills = 0;
+      bot.score = 0;
+      bot.health = 100;
+      bot.ammo = 50;
+      bot.doomX = 3 + Math.random() * 8;
+      bot.doomY = 3 + Math.random() * 8;
+      bot.doomAngle = Math.random() * Math.PI * 2;
+
+      const runDoomBotLoop = () => {
+        if (this.status !== 'playing') return;
+
+        const intervalMs = 2000 + Math.random() * 2000;
+        const timer = setTimeout(() => {
+          if (this.status !== 'playing') return;
+
+          // 80% chance bot defeats a monster
+          if (Math.random() < 0.8) {
+            bot.kills = (bot.kills || 0) + 1;
+            bot.score = (bot.score || 0) + 150;
+            bot.ammo = Math.max(10, (bot.ammo || 50) - 2);
+            bot.stats.correct++;
+
+            // Random movement
+            bot.doomX += (Math.random() - 0.5) * 1.5;
+            bot.doomY += (Math.random() - 0.5) * 1.5;
+            bot.doomAngle += (Math.random() - 0.5) * 1.0;
+
+            const targetKills = (this.config.doomSettings && this.config.doomSettings.targetKills) || 25;
+            if (bot.kills >= targetKills) {
+              this.endGame(`🏆 ${bot.name}님이 몬스터 ${targetKills}마리를 최초로 소탕하여 최종 우승했습니다! 🎉`);
+              return;
+            }
+          }
+
+          io.to(this.code).emit('doom-player-sync', {
+            id: bot.id,
+            name: bot.name,
+            nickname: bot.nickname,
+            studentNo: bot.studentNo,
+            avatar: bot.avatar,
+            kills: bot.kills,
+            score: bot.score,
+            health: bot.health,
+            ammo: bot.ammo,
+            x: bot.doomX,
+            y: bot.doomY,
+            angle: bot.doomAngle,
+            isBot: true
+          });
+
+          this.broadcastLeaderboard();
+          runDoomBotLoop();
+        }, intervalMs);
+
+        this.botIntervals.push(timer);
+      };
+
+      runDoomBotLoop();
+    }
   }
 
   startDldBots() {
@@ -1402,6 +1518,141 @@ io.on('connection', (socket) => {
       isCorrect,
       energyGain,
       totalEnergy: player.energy,
+      streak: player.streak,
+      correctAnswerIndex: q.answer,
+      nextQuestion: {
+        id: player.currentQuestion.id,
+        question: player.currentQuestion.question,
+        options: player.currentQuestion.options
+      }
+    });
+  });
+
+  // --- DOOM 3D Quiz Fortress Socket Handlers ---
+  socket.on('doom-player-sync', ({ code, playerId, x, y, angle, health, armor, ammo, kills, score }) => {
+    const room = rooms[code];
+    if (!room || room.status !== 'playing') return;
+    const player = room.players[playerId];
+    if (player) {
+      player.doomX = x;
+      player.doomY = y;
+      player.doomAngle = angle;
+      if (health !== undefined) player.health = health;
+      if (armor !== undefined) player.armor = armor;
+      if (ammo !== undefined) player.ammo = ammo;
+      if (kills !== undefined) player.kills = kills;
+      if (score !== undefined) player.score = score;
+
+      socket.to(code).emit('doom-player-sync', {
+        id: player.id,
+        name: player.name,
+        nickname: player.nickname,
+        studentNo: player.studentNo,
+        avatar: player.avatar,
+        kills: player.kills,
+        score: player.score,
+        health: player.health,
+        armor: player.armor,
+        ammo: player.ammo,
+        x: player.doomX,
+        y: player.doomY,
+        angle: player.doomAngle,
+        isBot: false
+      });
+    }
+  });
+
+  socket.on('doom-player-shot', ({ code, playerId, weapon }) => {
+    socket.to(code).emit('doom-player-shot', { playerId, weapon });
+  });
+
+  socket.on('doom-monster-kill', ({ code, playerId, monsterType, scoreGained }) => {
+    const room = rooms[code];
+    if (!room || room.status !== 'playing') return;
+    const player = room.players[playerId];
+    if (player) {
+      player.kills = (player.kills || 0) + 1;
+      player.score = (player.score || 0) + (scoreGained || 100);
+
+      const targetKills = (room.config.doomSettings && room.config.doomSettings.targetKills) || 25;
+      if (player.kills >= targetKills) {
+        room.endGame(`🏆 ${player.name}님이 몬스터 ${targetKills}마리를 소탕하고 던전을 정복하여 우승했습니다! 🎉`);
+      } else {
+        room.broadcastLeaderboard();
+      }
+    }
+  });
+
+  socket.on('doom-boss-hit', ({ code, playerId, damage }) => {
+    const room = rooms[code];
+    if (!room || room.status !== 'playing') return;
+    const player = room.players[playerId];
+    if (!room.config.doomSettings) room.config.doomSettings = { currentBossHealth: 1000, bossHealth: 1000 };
+    
+    room.config.doomSettings.currentBossHealth = Math.max(0, room.config.doomSettings.currentBossHealth - (damage || 50));
+    io.to(code).emit('doom-boss-update', {
+      currentHealth: room.config.doomSettings.currentBossHealth,
+      maxHealth: room.config.doomSettings.bossHealth || 1000,
+      attackerName: player ? player.name : '플레이어'
+    });
+
+    if (room.config.doomSettings.currentBossHealth <= 0) {
+      room.endGame(`🏆 ${player ? player.name : '영웅'}님이 둠 사이버 보스를 격파하여 최종 우승했습니다! 🎉`);
+    }
+  });
+
+  socket.on('doom-answer-quiz', ({ code, playerId, answerIndex }, callback) => {
+    const room = rooms[code];
+    if (!room) return callback({ success: false, error: '방을 찾을 수 없습니다.' });
+    const player = room.players[playerId];
+    if (!player) return callback({ success: false, error: '플레이어를 찾을 수 없습니다.' });
+
+    if (!player.currentQuestion) {
+      player.currentQuestion = room.getRandomQuestion();
+    }
+    const q = player.currentQuestion;
+    if (!q) return callback({ success: false, error: '문제가 없습니다.' });
+
+    const isCorrect = (answerIndex === q.answer);
+    let ammoGain = 0;
+    let healthGain = 0;
+    let bfgUnlocked = false;
+
+    if (isCorrect) {
+      player.streak++;
+      player.stats.correct++;
+      player.stats.maxStreak = Math.max(player.stats.maxStreak || 0, player.streak);
+      ammoGain = (room.config.doomSettings && room.config.doomSettings.ammoGain) || 40;
+      healthGain = (room.config.doomSettings && room.config.doomSettings.healthGain) || 25;
+      
+      player.ammo = Math.min(200, (player.ammo || 50) + ammoGain);
+      player.health = Math.min(100, (player.health || 100) + healthGain);
+      player.score = (player.score || 0) + 250;
+
+      if (player.streak >= 3) {
+        bfgUnlocked = true;
+        room.addEventLog(`💥 ${player.name}님이 ${player.streak}연속 정답으로 BFG 9000 슈퍼무기를 충전했습니다!`, '💥');
+      } else {
+        room.addEventLog(`🔋 ${player.name}님이 퀴즈 정답으로 탄약(+${ammoGain})과 체력(+${healthGain})을 보급받았습니다!`, '🔋');
+      }
+    } else {
+      player.streak = 0;
+      player.stats.wrong++;
+      player.health = Math.max(10, (player.health || 100) - 15);
+      room.addEventLog(`⚠️ ${player.name}님이 퀴즈 오답으로 데미지를 입었습니다! (-15 HP)`, '⚠️');
+    }
+
+    player.currentQuestion = room.getRandomQuestion();
+    room.broadcastLeaderboard();
+
+    callback({
+      success: true,
+      isCorrect,
+      ammoGain,
+      healthGain,
+      bfgUnlocked,
+      totalAmmo: player.ammo,
+      totalHealth: player.health,
       streak: player.streak,
       correctAnswerIndex: q.answer,
       nextQuestion: {

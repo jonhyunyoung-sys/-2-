@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gimkit Host - DOOM 3D 던전 (대형 스크린 & 진행자)</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    .radar-canvas-box {
+      position: relative;
+      background: #030712;
+      border: 2px solid rgba(239, 68, 68, 0.4);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-container">
+    <!-- Top Nav -->
+    <header class="top-nav">
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <a href="/" class="brand">
+          <span>💀</span> GIMKIT
+        </a>
+        <span class="brand-badge" style="background: #b91c1c; color: #fef2f2;">DOOM 3D HOST</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <!-- Room Code Display -->
+        <div style="background: rgba(15, 23, 42, 0.9); border: 2px solid #ef4444; padding: 0.4rem 1.2rem; border-radius: 12px; display: flex; align-items: center; gap: 0.6rem;">
+          <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700;">방 번호:</span>
+          <span id="roomCodeDisplay" style="font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; color: #fff;">------</span>
+          <button class="btn btn-outline" style="padding: 0.2rem 0.6rem; font-size: 0.75rem;" onclick="copyJoinLink()">
+            📋 링크 복사
+          </button>
+        </div>
+
+        <div class="stat-pill" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.4);">
+          🎯 목표: 몬스터 25마리 소탕
+        </div>
+
+        <button id="btnLiveAchievement" class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.82rem; font-weight: 800; border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.1);" onclick="openAchievementModal()">
+          📊 성취도 분석
+        </button>
+
+        <button id="btnEndGame" class="btn btn-danger" style="display: none; padding: 0.4rem 0.9rem; font-size: 0.85rem;" onclick="endGameEarly()">
+          게임 종료 ⏹️
+        </button>
+      </div>
+    </header>
+
+    <!-- SECTION 1: LOBBY -->
+    <main id="lobbySection" style="display: block;">
+      <div style="display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem;">
+        <!-- Left: Game Settings -->
+        <div class="card">
+          <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
+            ⚙️ 둠 던전 규칙 설정
+          </h2>
+
+          <!-- Quiz Set Selector -->
+          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+              <span style="font-size: 0.88rem; font-weight: 800; color: #38bdf8;">📚 퀴즈 문제 세트</span>
+              <button class="btn btn-outline" style="padding: 0.2rem 0.5rem; font-size: 0.72rem;" onclick="downloadSampleExcel()">
+                📥 템플릿
+              </button>
+            </div>
+            <select id="quizSetSelect" style="width: 100%; padding: 0.6rem; border-radius: 10px; background: #0f172a; border: 1px solid var(--border); color: #fff; font-weight: 700; margin-bottom: 0.5rem;">
+              <option value="joseon-early">⚔️ 조선 전기사 마스터 퀴즈 (10문항)</option>
+              <option value="general">🌍 상식 & 지식 퀴즈 (12문항)</option>
+              <option value="dev">💻 코딩 & IT 기술 퀴즈 (10문항)</option>
+            </select>
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="onExcelFileSelected(event)" />
+            <button class="btn btn-outline" style="width: 100%; padding: 0.5rem; font-size: 0.82rem; border-style: dashed; border-color: rgba(56, 189, 248, 0.5);" onclick="triggerExcelUpload()">
+              <span>📤</span> <strong>엑셀(xlsx) 퀴즈 파일 변경</strong>
+            </button>
+          </div>
+
+          <!-- Difficulty & Target Kills -->
+          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem; margin-bottom: 1.2rem;">
+            <span style="font-size: 0.88rem; font-weight: 800; color: #ef4444; display: block; margin-bottom: 0.6rem;">
+              👹 던전 난이도 & 목표 킬수
+            </span>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-bottom: 0.8rem;">
+              <button type="button" class="btn-diff-preset" id="diffBtn_easy" onclick="setDoomDifficulty('easy')">쉬움(15킬)</button>
+              <button type="button" class="btn-diff-preset active" id="diffBtn_normal" onclick="setDoomDifficulty('normal')">보통(25킬)</button>
+              <button type="button" class="btn-diff-preset" id="diffBtn_hard" onclick="setDoomDifficulty('hard')">어려움(35킬)</button>
+              <button type="button" class="btn-diff-preset" id="diffBtn_nightmare" onclick="setDoomDifficulty('nightmare')">악몽(50킬)</button>
+            </div>
+          </div>
+
+          <button id="btnStartGame" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.15rem; font-weight: 900; background: linear-gradient(135deg, #b91c1c, #ef4444);" onclick="startGame()">
+            던전 개방 & 게임 시작 🔥
+          </button>
+        </div>
+
+        <!-- Right: Player Lobby Tray -->
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
+            <h2 style="font-size: 1.3rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+              <span>👥</span> 참가 대기 학생 (<span id="playerCount">0</span>명)
+            </h2>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="addBot()">
+                + AI 봇 추가
+              </button>
+              <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="removeBot()">
+                - 봇 제거
+              </button>
+            </div>
+          </div>
+
+          <div id="lobbyPlayersGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.8rem; max-height: 400px; overflow-y: auto;">
+            <!-- Players Cards -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- SECTION 2: LIVE IN-GAME MONITOR -->
+    <main id="inGameSection" style="display: none;">
+      <!-- Boss Health Bar -->
+      <div style="background: rgba(15, 23, 42, 0.9); border: 2px solid #a855f7; border-radius: 12px; padding: 0.8rem 1.2rem; margin-bottom: 1rem; text-align: center;">
+        <div style="display: flex; justify-content: space-between; font-weight: 900; font-size: 0.95rem; margin-bottom: 0.3rem;">
+          <span style="color: #c084fc;">💀 던전 최종 보스: 사이버 데몬</span>
+          <span id="bossHpText" style="color: #f3e8ff;">1,000 / 1,000 HP</span>
+        </div>
+        <div style="width: 100%; height: 14px; background: rgba(0,0,0,0.6); border-radius: 7px; overflow: hidden; border: 1px solid #7e22ce;">
+          <div id="bossHpBar" style="width: 100%; height: 100%; background: linear-gradient(90deg, #9333ea, #ec4899); transition: width 0.3s ease;"></div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem;">
+        <!-- Left: 24x24 Top-View Dungeon Radar Map -->
+        <div class="card" style="display: flex; flex-direction: column;">
+          <h2 style="font-size: 1.2rem; font-weight: 800; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: #ef4444;">
+            🗺️ 던전 전지적 레이더 관전 맵 (24 x 24)
+          </h2>
+          <div class="radar-canvas-box" style="flex: 1; min-height: 460px;">
+            <canvas id="hostRadarCanvas" width="460" height="460" style="display: block;"></canvas>
+          </div>
+          <div style="display: flex; justify-content: center; gap: 1.2rem; margin-top: 0.6rem; font-size: 0.8rem; color: #94a3b8;">
+            <span>🧑‍🚀 학생(화살표 방향)</span>
+            <span>👹 일반 몬스터</span>
+            <span>💀 사이버 보스</span>
+            <span>🔒 퀴즈 게이트</span>
+            <span>🔋 보급 단말기</span>
+          </div>
+        </div>
+
+        <!-- Right: Leaderboard -->
+        <div class="card">
+          <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
+            🏆 실시간 소탕 랭킹
+          </h2>
+          <div id="doomLeaderboardList" class="leaderboard-table" style="max-height: 460px; overflow-y: auto;">
+            <!-- Rows -->
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- SECTION 3: PODIUM & RESULTS -->
+    <main id="podiumSection" style="display: none;">
+      <div class="card" style="text-align: center; padding: 2.5rem 1.5rem;">
+        <h1 style="font-size: 2.8rem; font-weight: 900; background: linear-gradient(135deg, #ef4444, #f59e0b); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          🏆 둠 던전 정복 완료! 🏆
+        </h1>
+        <p id="endReasonText" style="color: var(--text-muted); font-size: 1.15rem; margin-top: 0.5rem;">
+          악마들이 모두 소탕되었습니다!
+        </p>
+
+        <div id="podiumContainer" class="podium-container"></div>
+
+        <div style="display: flex; justify-content: center; gap: 0.8rem; flex-wrap: wrap; margin-top: 1.8rem;">
+          <button class="btn btn-outline" style="padding: 0.85rem 1.6rem; font-size: 1.05rem; font-weight: 800; border-color: #38bdf8; color: #38bdf8; background: rgba(56, 189, 248, 0.1);" onclick="openAchievementModal()">
+            📊 학생별 성취도 상세 열람
+          </button>
+          <button class="btn btn-primary" style="padding: 0.85rem 1.8rem; font-size: 1.05rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);" onclick="downloadAchievementExcel()">
+            📥 엑셀 시트(.xlsx) 다운로드
+          </button>
+          <button class="btn btn-outline" style="padding: 0.85rem 1.5rem; font-size: 1.05rem; font-weight: 800;" onclick="location.reload()">
+            새 게임 시작하기 🔄
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Achievement Modal -->
+  <div id="achievementModal" class="modal-backdrop" style="display: none; z-index: 10000;">
+    <div class="modal-box" style="max-width: 900px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 1.5rem; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; margin-bottom: 1rem;">
+        <div>
+          <h2 style="font-size: 1.4rem; font-weight: 900; margin: 0; color: #fff;">
+            📊 학생별 학습 성취도 분석 (DOOM 3D)
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0.2rem 0 0 0;">
+            출석번호순으로 확인하고 엑셀 시트로 즉시 저장하세요.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981);" onclick="downloadAchievementExcel()">
+            📥 엑셀 다운로드 (.xlsx)
+          </button>
+          <button class="btn btn-outline" style="padding: 0.4rem 0.7rem; font-size: 0.9rem;" onclick="closeAchievementModal()">✕</button>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+        <div style="display: flex; gap: 0.4rem;">
+          <button id="achSortByNoBtn" class="btn-diff-preset active" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;" onclick="setAchievementSort('number')">
+            🔢 출석번호순 (기본)
+          </button>
+          <button id="achSortByRankBtn" class="btn-diff-preset" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;" onclick="setAchievementSort('rank')">
+            🏆 킬/점수순
+          </button>
+          <button id="achSortByAccBtn" class="btn-diff-preset" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;" onclick="setAchievementSort('accuracy')">
+            🎯 정답률순
+          </button>
+        </div>
+        <span style="font-size: 0.75rem; color: #94a3b8;">
+          💡 나이스(NEIS) 입력 시 [출석번호순]을 사용하시면 편리합니다.
+        </span>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: rgba(15, 23, 42, 0.6);">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: center;">
+          <thead style="background: rgba(30, 41, 59, 0.9); position: sticky; top: 0; z-index: 1;">
+            <tr style="border-bottom: 1px solid var(--border); color: #94a3b8; font-weight: 800;">
+              <th style="padding: 0.6rem 0.5rem;">번호</th>
+              <th style="padding: 0.6rem 0.5rem; text-align: left;">이름 / 별명</th>
+              <th style="padding: 0.6rem 0.5rem;">소속 조</th>
+              <th style="padding: 0.6rem 0.5rem;">처치 수</th>
+              <th style="padding: 0.6rem 0.5rem;">점수</th>
+              <th style="padding: 0.6rem 0.5rem;">맞힌 문제</th>
+              <th style="padding: 0.6rem 0.5rem;">틀린 문제</th>
+              <th style="padding: 0.6rem 0.5rem;">정답률</th>
+              <th style="padding: 0.6rem 0.5rem;">최대 연속</th>
+              <th style="padding: 0.6rem 0.5rem;">순위</th>
+            </tr>
+          </thead>
+          <tbody id="achievementTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/xlsx.full.min.js"></script>
+  <script src="/js/sound.js"></script>
+  <script src="/js/quiz-manager.js"></script>
+  <script src="/js/host-doom.js"></script>
+</body>
+</html>
