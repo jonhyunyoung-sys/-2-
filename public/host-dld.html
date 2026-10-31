@@ -85,6 +85,75 @@
             </button>
           </div>
 
+          <!-- Difficulty & Balance Customization Panel -->
+          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem; margin-bottom: 1.2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+              <span style="font-size: 0.88rem; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 0.35rem;">
+                ⚖️ 난이도 & 밸런스 설정
+              </span>
+              <span id="difficultyBadge" style="font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 6px; font-weight: 800; background: #0284c7; color: #fff;">
+                🟡 보통
+              </span>
+            </div>
+
+            <!-- Difficulty Presets -->
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-bottom: 0.8rem;">
+              <button type="button" class="btn-diff-preset" id="presetBtn_easy" onclick="setDifficultyPreset('easy')">🟢 쉬움</button>
+              <button type="button" class="btn-diff-preset active" id="presetBtn_normal" onclick="setDifficultyPreset('normal')">🟡 보통</button>
+              <button type="button" class="btn-diff-preset" id="presetBtn_hard" onclick="setDifficultyPreset('hard')">🔴 어려움</button>
+              <button type="button" class="btn-diff-preset" id="presetBtn_extreme" onclick="setDifficultyPreset('extreme')">🔥 지옥</button>
+            </div>
+
+            <!-- Fine-tuning Controls -->
+            <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.78rem;">
+              <!-- 1. Energy Gain -->
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem; color: #cbd5e1; font-weight: 700;">
+                  <span>⚡ 정답 에너지 수급량</span>
+                  <span id="energyGainLabel" style="color: #38bdf8; font-weight: 900;">+1,000</span>
+                </div>
+                <input type="range" id="energyGainRange" min="400" max="2500" step="100" value="1000" style="width: 100%; accent-color: #38bdf8; cursor: pointer;" oninput="onCustomSettingChange()" />
+              </div>
+
+              <!-- 2. Jump Cost -->
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem; color: #cbd5e1; font-weight: 700;">
+                  <span>🦘 점프 시 소모량</span>
+                  <span id="jumpCostLabel" style="color: #f59e0b; font-weight: 900;">15 (더블 30)</span>
+                </div>
+                <input type="range" id="jumpCostRange" min="5" max="40" step="5" value="15" style="width: 100%; accent-color: #f59e0b; cursor: pointer;" oninput="onCustomSettingChange()" />
+              </div>
+
+              <!-- 3. Gem Spawn Rate -->
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem; color: #cbd5e1; font-weight: 700;">
+                  <span>💎 보석(젬) 등장 빈도</span>
+                  <span id="gemRateLabel" style="color: #34d399; font-weight: 900;">보통 (45%)</span>
+                </div>
+                <select id="gemRateSelect" style="width: 100%; padding: 0.35rem 0.5rem; border-radius: 8px; background: #0f172a; border: 1px solid var(--border); color: #fff; font-size: 0.78rem;" onchange="onCustomSettingChange()">
+                  <option value="0.20">희귀함 (20%) - 퀴즈 위주 플레이</option>
+                  <option value="0.45" selected>보통 (45%) - 균형 잡힌 배치</option>
+                  <option value="0.70">많음 (70%) - 풍부한 보석 수급</option>
+                  <option value="1.00">넘쳐남 (100%) - 보석 파티</option>
+                </select>
+              </div>
+
+              <!-- 4. Updraft Spawn Rate -->
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem; color: #cbd5e1; font-weight: 700;">
+                  <span>💨 상승 기류(바람) 빈도</span>
+                  <span id="updraftRateLabel" style="color: #a78bfa; font-weight: 900;">보통 (10%)</span>
+                </div>
+                <select id="updraftRateSelect" style="width: 100%; padding: 0.35rem 0.5rem; border-radius: 8px; background: #0f172a; border: 1px solid var(--border); color: #fff; font-size: 0.78rem;" onchange="onCustomSettingChange()">
+                  <option value="0.00">없음 (0%) - 순수 점프 등반</option>
+                  <option value="0.10" selected>보통 (10%) - 가끔 나오는 지름길</option>
+                  <option value="0.25">많음 (25%) - 빠른 수직 상승</option>
+                  <option value="0.40">슈퍼 상승 (40%) - 날아다니는 등반</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- Bot Management -->
           <div style="margin-bottom: 1.5rem; padding-top: 0.5rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">

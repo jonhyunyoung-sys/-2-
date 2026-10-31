@@ -285,7 +285,15 @@ class GameRoom {
       mode: 'race', // 'race' or 'time'
       timeLimitSeconds: 600, // 10 min default
       targetBalance: 10000, // for classic race mode
-      quizSetId: 'general'
+      quizSetId: 'joseon-early',
+      dldSettings: {
+        difficulty: 'normal',
+        energyGain: 1000,
+        jumpCost: 15,
+        gemRate: 0.45,
+        updraftRate: 0.10,
+        startingEnergy: 1500
+      }
     };
     this.remainingTime = 300;
     this.timerInterval = null;
@@ -396,7 +404,7 @@ class GameRoom {
       p.streak = 0;
       p.altitude = 0;
       p.summit = 1;
-      p.energy = 1500;
+      p.energy = (this.config.dldSettings && this.config.dldSettings.startingEnergy) || 1500;
       p.upgrades = { moneyPerQuestion: 1, streakBonus: 1, multiplier: 1, insurance: 1 };
       p.status = { isFrozen: false, frozenUntil: 0, hasShield: false, isEmped: false, empUntil: 0 };
       p.stats = { correct: 0, wrong: 0, upgradesBought: 0, powerupsUsed: 0 };
@@ -1120,7 +1128,7 @@ io.on('connection', (socket) => {
     if (isCorrect) {
       player.streak++;
       player.stats.correct++;
-      const baseGain = 1000;
+      const baseGain = (room.config && room.config.dldSettings && room.config.dldSettings.energyGain) || 1000;
       const streakBonus = (player.streak > 1) ? Math.min(player.streak - 1, 5) * 200 : 0;
       energyGain = baseGain + streakBonus;
       player.energy = (player.energy || 0) + energyGain;

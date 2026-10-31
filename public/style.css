@@ -905,3 +905,29 @@ body {
     justify-content: center;
   }
 }
+
+/* Host Difficulty & Balance Presets */
+.btn-diff-preset {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  padding: 0.4rem 0.2rem;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.btn-diff-preset:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #fff;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+.btn-diff-preset.active {
+  background: linear-gradient(135deg, #0284c7, #2563eb);
+  border-color: #38bdf8;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+

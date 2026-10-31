@@ -6,7 +6,15 @@ let currentConfig = {
   gameType: 'dont-look-down',
   mode: 'race',
   timeLimitSeconds: 600,
-  quizSetId: 'joseon-early'
+  quizSetId: 'joseon-early',
+  dldSettings: {
+    difficulty: 'normal',
+    energyGain: 1000,
+    jumpCost: 15,
+    gemRate: 0.45,
+    updraftRate: 0.10,
+    startingEnergy: 1500
+  }
 };
 let playersList = [];
 let serverInfo = { localUrl: window.location.origin, networkUrl: window.location.origin };
@@ -287,4 +295,144 @@ function escapeHtml(str) {
     '"': '&quot;',
     "'": '&#39;'
   }[m]));
+}
+
+// ----------------------------------------------------
+// Difficulty & Balance Customization Handlers
+// ----------------------------------------------------
+const DIFFICULTY_PRESETS = {
+  easy: {
+    label: '🟢 쉬움',
+    badgeColor: '#10b981',
+    energyGain: 1500,
+    jumpCost: 10,
+    gemRate: 0.70,
+    updraftRate: 0.25,
+    startingEnergy: 2000
+  },
+  normal: {
+    label: '🟡 보통',
+    badgeColor: '#0284c7',
+    energyGain: 1000,
+    jumpCost: 15,
+    gemRate: 0.45,
+    updraftRate: 0.10,
+    startingEnergy: 1500
+  },
+  hard: {
+    label: '🔴 어려움',
+    badgeColor: '#ef4444',
+    energyGain: 600,
+    jumpCost: 25,
+    gemRate: 0.20,
+    updraftRate: 0.00,
+    startingEnergy: 1000
+  },
+  extreme: {
+    label: '🔥 지옥',
+    badgeColor: '#7c3aed',
+    energyGain: 400,
+    jumpCost: 35,
+    gemRate: 0.10,
+    updraftRate: 0.00,
+    startingEnergy: 600
+  }
+};
+
+function setDifficultyPreset(key) {
+  const p = DIFFICULTY_PRESETS[key];
+  if (!p) return;
+
+  ['easy', 'normal', 'hard', 'extreme'].forEach(k => {
+    const btn = document.getElementById(`presetBtn_${k}`);
+    if (btn) btn.classList.toggle('active', k === key);
+  });
+
+  const badge = document.getElementById('difficultyBadge');
+  if (badge) {
+    badge.innerText = p.label;
+    badge.style.background = p.badgeColor;
+  }
+
+  const eGainInput = document.getElementById('energyGainRange');
+  if (eGainInput) eGainInput.value = p.energyGain;
+  const eGainLabel = document.getElementById('energyGainLabel');
+  if (eGainLabel) eGainLabel.innerText = `+${p.energyGain.toLocaleString()}`;
+
+  const jCostInput = document.getElementById('jumpCostRange');
+  if (jCostInput) jCostInput.value = p.jumpCost;
+  const jCostLabel = document.getElementById('jumpCostLabel');
+  if (jCostLabel) jCostLabel.innerText = `${p.jumpCost} (더블 ${p.jumpCost * 2})`;
+
+  const gemSelect = document.getElementById('gemRateSelect');
+  if (gemSelect) gemSelect.value = p.gemRate.toFixed(2);
+  const gemLabelMap = { '0.20': '희귀함 (20%)', '0.45': '보통 (45%)', '0.70': '많음 (70%)', '1.00': '넘쳐남 (100%)' };
+  const gemLabel = document.getElementById('gemRateLabel');
+  if (gemLabel) gemLabel.innerText = gemLabelMap[p.gemRate.toFixed(2)] || `${Math.round(p.gemRate * 100)}%`;
+
+  const updraftSelect = document.getElementById('updraftRateSelect');
+  if (updraftSelect) updraftSelect.value = p.updraftRate.toFixed(2);
+  const updraftLabelMap = { '0.00': '없음 (0%)', '0.10': '보통 (10%)', '0.25': '많음 (25%)', '0.40': '슈퍼 상승 (40%)' };
+  const updraftLabel = document.getElementById('updraftRateLabel');
+  if (updraftLabel) updraftLabel.innerText = updraftLabelMap[p.updraftRate.toFixed(2)] || `${Math.round(p.updraftRate * 100)}%`;
+
+  currentConfig.dldSettings = {
+    difficulty: key,
+    energyGain: p.energyGain,
+    jumpCost: p.jumpCost,
+    gemRate: p.gemRate,
+    updraftRate: p.updraftRate,
+    startingEnergy: p.startingEnergy
+  };
+
+  syncConfigWithServer();
+}
+
+function onCustomSettingChange() {
+  const energyGain = parseInt(document.getElementById('energyGainRange').value, 10);
+  const jumpCost = parseInt(document.getElementById('jumpCostRange').value, 10);
+  const gemRate = parseFloat(document.getElementById('gemRateSelect').value);
+  const updraftRate = parseFloat(document.getElementById('updraftRateSelect').value);
+
+  const eGainLabel = document.getElementById('energyGainLabel');
+  if (eGainLabel) eGainLabel.innerText = `+${energyGain.toLocaleString()}`;
+
+  const jCostLabel = document.getElementById('jumpCostLabel');
+  if (jCostLabel) jCostLabel.innerText = `${jumpCost} (더블 ${jumpCost * 2})`;
+
+  const gemLabelMap = { '0.20': '희귀함 (20%)', '0.45': '보통 (45%)', '0.70': '많음 (70%)', '1.00': '넘쳐남 (100%)' };
+  const gemLabel = document.getElementById('gemRateLabel');
+  if (gemLabel) gemLabel.innerText = gemLabelMap[gemRate.toFixed(2)] || `${Math.round(gemRate * 100)}%`;
+
+  const updraftLabelMap = { '0.00': '없음 (0%)', '0.10': '보통 (10%)', '0.25': '많음 (25%)', '0.40': '슈퍼 상승 (40%)' };
+  const updraftLabel = document.getElementById('updraftRateLabel');
+  if (updraftLabel) updraftLabel.innerText = updraftLabelMap[updraftRate.toFixed(2)] || `${Math.round(updraftRate * 100)}%`;
+
+  ['easy', 'normal', 'hard', 'extreme'].forEach(k => {
+    const btn = document.getElementById(`presetBtn_${k}`);
+    if (btn) btn.classList.remove('active');
+  });
+
+  const badge = document.getElementById('difficultyBadge');
+  if (badge) {
+    badge.innerText = '⚙️ 사용자 정의';
+    badge.style.background = '#6366f1';
+  }
+
+  currentConfig.dldSettings = {
+    difficulty: 'custom',
+    energyGain,
+    jumpCost,
+    gemRate,
+    updraftRate,
+    startingEnergy: Math.max(500, Math.min(3000, energyGain * 1.5))
+  };
+
+  syncConfigWithServer();
+}
+
+function syncConfigWithServer() {
+  if (currentRoomCode) {
+    socket.emit('update-room-config', { code: currentRoomCode, config: currentConfig });
+  }
 }

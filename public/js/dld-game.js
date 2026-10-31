@@ -92,6 +92,29 @@ let isQuestionModalOpen = false;
 let myPlayerId = null;
 let currentQuestion = null;
 let syncInterval = null;
+let roomConfig = null;
+
+function applyRoomConfig() {
+  if (!roomConfig || !roomConfig.dldSettings) return;
+  const s = roomConfig.dldSettings;
+
+  // Update HUD Difficulty Badge
+  const badge = document.getElementById('hudDiffBadge');
+  if (badge) {
+    const diffNames = {
+      easy: '🟢 쉬움 (+1,500⚡)',
+      normal: '🟡 보통 (+1,000⚡)',
+      hard: '🔴 어려움 (+600⚡)',
+      extreme: '🔥 지옥 (+400⚡)',
+      custom: `⚙️ 설정 (+${(s.energyGain || 1000).toLocaleString()}⚡ | 점프 ${s.jumpCost || 15})`
+    };
+    badge.innerText = diffNames[s.difficulty] || `⚡ +${(s.energyGain || 1000).toLocaleString()}`;
+    badge.style.display = 'block';
+  }
+
+  // Regenerate platforms/items with updated spawn rates
+  generatePlatforms();
+}
 
 // Initialize World & Game
 window.addEventListener('DOMContentLoaded', () => {
@@ -148,6 +171,13 @@ function generatePlatforms() {
   lasers = [];
   gems = [];
   updrafts = [];
+
+  const gemRate = (roomConfig && roomConfig.dldSettings && roomConfig.dldSettings.gemRate !== undefined)
+    ? roomConfig.dldSettings.gemRate
+    : 0.45;
+  const updraftRate = (roomConfig && roomConfig.dldSettings && roomConfig.dldSettings.updraftRate !== undefined)
+    ? roomConfig.dldSettings.updraftRate
+    : 0.10;
 
   // Ground base: Huge Solid Study Room Floor
   platforms.push({
@@ -264,7 +294,7 @@ function generatePlatforms() {
     platforms.push(plat);
 
     // Floating Collectible Energy Gem above platform
-    if (Math.random() < 0.45 && curY > 120) {
+    if (Math.random() < gemRate && curY > 120) {
       const gemColors = {
         1: '#f97316', // Ruby
         2: '#06b6d4', // Cyan Pearl
@@ -286,7 +316,7 @@ function generatePlatforms() {
     }
 
     // Updraft fans periodically
-    if (Math.random() < 0.10 && updrafts.length < 4) {
+    if (Math.random() < updraftRate && updrafts.length < 5) {
       updrafts.push({
         x: curX + pWidth / 2 - 30,
         y: curY - 150,
@@ -339,6 +369,10 @@ function joinDldRoom() {
     }
     myPlayerId = res.playerId;
     hasJoinedOnce = true;
+    if (res.config) {
+      roomConfig = res.config;
+      applyRoomConfig();
+    }
     if (res.player) {
       player.energy = res.player.energy || 1500;
     }
@@ -385,8 +419,18 @@ function joinDldRoom() {
     currentQuestion = q;
   });
 
+  // Host updates difficulty or balance
+  socket.on('room-config-updated', (cfg) => {
+    roomConfig = cfg;
+    applyRoomConfig();
+  });
+
   // Host starts game: Reset all players to 0m start!
   socket.on('game-started', (data) => {
+    if (data && data.config) {
+      roomConfig = data.config;
+      applyRoomConfig();
+    }
     resetToStart();
   });
 
@@ -585,13 +629,16 @@ function setupControls() {
 function tryJump() {
   if (isQuestionModalOpen) return;
 
+  const jumpCost = (roomConfig && roomConfig.dldSettings && roomConfig.dldSettings.jumpCost) || 15;
+  const doubleJumpCost = jumpCost * 2;
+
   // Single jump
   if (player.isGrounded) {
-    if (player.energy >= 15) {
+    if (player.energy >= jumpCost) {
       player.vy = JUMP_FORCE;
       player.isGrounded = false;
       player.canDoubleJump = true;
-      player.energy -= 15;
+      player.energy -= jumpCost;
 
       // Stretch animation on jump
       player.scaleX = 0.72;
@@ -606,10 +653,10 @@ function tryJump() {
   } 
   // Double Jump (Gimkit's essential mechanic!)
   else if (player.canDoubleJump) {
-    if (player.energy >= 30) {
+    if (player.energy >= doubleJumpCost) {
       player.vy = DOUBLE_JUMP_FORCE;
       player.canDoubleJump = false;
-      player.energy -= 30;
+      player.energy -= doubleJumpCost;
 
       // Extreme stretch on double jump
       player.scaleX = 0.66;
