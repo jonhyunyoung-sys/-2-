@@ -322,6 +322,7 @@ class GameRoom {
       },
       doomSettings: {
         difficulty: 'normal',
+        subMode: 'pve', // 'pve' (각자 몬스터 사냥) | 'pvp' (학생 간 대전 데스매치) | 'team' (조별 팀 대항전)
         targetKills: 25,
         bossHealth: 1000,
         currentBossHealth: 1000,
@@ -1566,6 +1567,79 @@ io.on('connection', (socket) => {
     socket.to(code).emit('doom-player-shot', { playerId, weapon });
   });
 
+  // Host: Set DOOM SubMode ('pve' | 'pvp' | 'team')
+  socket.on('set-doom-submode', ({ code, subMode }) => {
+    const room = rooms[code];
+    if (room) {
+      if (!room.config.doomSettings) room.config.doomSettings = {};
+      room.config.doomSettings.subMode = subMode;
+      const isTeam = (subMode === 'team');
+      room.config.isTeamMode = isTeam;
+      if (isTeam && Object.keys(room.teams).length === 0) {
+        room.teams['team_1'] = { ...DEFAULT_TEAMS[0] };
+        room.teams['team_2'] = { ...DEFAULT_TEAMS[1] };
+      }
+      io.to(code).emit('doom-config-updated', room.config);
+      room.broadcastTeams();
+      room.broadcastLeaderboard();
+    }
+  });
+
+  // DOOM PVP Player Hit (Damage another player)
+  socket.on('doom-player-hit', ({ code, attackerId, targetId, damage, weapon }) => {
+    const room = rooms[code];
+    if (!room || room.status !== 'playing') return;
+    const attacker = room.players[attackerId];
+    const target = room.players[targetId];
+    if (!attacker || !target || attacker.id === target.id) return;
+
+    const subMode = (room.config.doomSettings && room.config.doomSettings.subMode) || 'pve';
+    if (subMode === 'pve') return; // Friendly fire OFF in PVE mode
+
+    // Friendly fire check in Team Mode
+    if (subMode === 'team' && attacker.teamId && target.teamId && attacker.teamId === target.teamId) {
+      return; // Cannot attack teammates
+    }
+
+    if (target.socketId) {
+      io.to(target.socketId).emit('doom-you-were-hit', {
+        attackerId: attacker.id,
+        attackerName: attacker.name,
+        damage,
+        weapon
+      });
+    }
+  });
+
+  // DOOM PVP Player Killed (Target died)
+  socket.on('doom-player-killed', ({ code, killerId, victimId }) => {
+    const room = rooms[code];
+    if (!room || room.status !== 'playing') return;
+    const killer = room.players[killerId];
+    const victim = room.players[victimId];
+    if (killer && victim) {
+      killer.kills = (killer.kills || 0) + 1;
+      killer.score = (killer.score || 0) + 300;
+      room.addEventLog(`⚔️ ${killer.name}님이 ${victim.name}님을 처치했습니다! (+300P)`, '💀');
+
+      const targetKills = (room.config.doomSettings && room.config.doomSettings.targetKills) || 25;
+      if (room.config.isTeamMode && killer.teamId && room.teams[killer.teamId]) {
+        const teamStats = room.getTeamLeaderboard();
+        const myTeam = teamStats.find(t => t.id === killer.teamId);
+        if (myTeam && (myTeam.totalKills || 0) >= targetKills) {
+          room.endGame(`🏆 ${myTeam.emoji} ${myTeam.name}이(가) 목표 킬수(${targetKills}킬)를 달성하여 최종 우승했습니다! 🎉`);
+          return;
+        }
+      }
+
+      if (!room.config.isTeamMode && killer.kills >= targetKills) {
+        room.endGame(`🏆 ${killer.name}님이 목표 킬수(${targetKills}킬)를 달성하여 최종 우승했습니다! 🎉`);
+      } else {
+        room.broadcastLeaderboard();
+      }
+    }
+  });
+
   socket.on('doom-monster-kill', ({ code, playerId, monsterType, scoreGained }) => {
     const room = rooms[code];
     if (!room || room.status !== 'playing') return;
@@ -1575,7 +1649,16 @@ io.on('connection', (socket) => {
       player.score = (player.score || 0) + (scoreGained || 100);
 
       const targetKills = (room.config.doomSettings && room.config.doomSettings.targetKills) || 25;
-      if (player.kills >= targetKills) {
+      if (room.config.isTeamMode && player.teamId && room.teams[player.teamId]) {
+        const teamStats = room.getTeamLeaderboard();
+        const myTeam = teamStats.find(t => t.id === player.teamId);
+        if (myTeam && (myTeam.totalKills || 0) >= targetKills) {
+          room.endGame(`🏆 ${myTeam.emoji} ${myTeam.name}이(가) 목표 소탕수(${targetKills}킬)를 달성하여 최종 우승했습니다! 🎉`);
+          return;
+        }
+      }
+
+      if (!room.config.isTeamMode && player.kills >= targetKills) {
         room.endGame(`🏆 ${player.name}님이 몬스터 ${targetKills}마리를 소탕하고 던전을 정복하여 우승했습니다! 🎉`);
       } else {
         room.broadcastLeaderboard();

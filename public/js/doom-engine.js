@@ -507,6 +507,43 @@ initMonsters();
 let otherPlayers = {}; // id -> player ghost
 let zBuffer = []; // Distance array for sprite sorting
 
+// Game Mode & Team State
+let currentDoomSubMode = 'pve'; // 'pve', 'pvp', 'team'
+let isTeamMode = false;
+let myTeamId = null;
+let myTeamInfo = null;
+let doomTeams = {};
+
+function updateDoomModeHUD() {
+  const modeBadge = document.getElementById('hudModeBadge');
+  const teamBadge = document.getElementById('hudTeamBadge');
+  if (modeBadge) {
+    if (currentDoomSubMode === 'pve') {
+      modeBadge.innerHTML = '🎯 몬스터 사냥';
+      modeBadge.style.color = '#10b981';
+      modeBadge.style.borderColor = '#10b981';
+    } else if (currentDoomSubMode === 'pvp') {
+      modeBadge.innerHTML = '⚔️ 플레이어 대전';
+      modeBadge.style.color = '#ef4444';
+      modeBadge.style.borderColor = '#ef4444';
+    } else if (currentDoomSubMode === 'team') {
+      modeBadge.innerHTML = '👥 조별 대항전';
+      modeBadge.style.color = '#38bdf8';
+      modeBadge.style.borderColor = '#38bdf8';
+    }
+  }
+  if (teamBadge) {
+    if (currentDoomSubMode === 'team' && myTeamInfo) {
+      teamBadge.style.display = 'block';
+      teamBadge.innerHTML = `${myTeamInfo.emoji || '👥'} ${myTeamInfo.name}`;
+      teamBadge.style.color = myTeamInfo.color || '#38bdf8';
+      teamBadge.style.borderColor = myTeamInfo.color || '#38bdf8';
+    } else {
+      teamBadge.style.display = 'none';
+    }
+  }
+}
+
 // Current Quiz State
 let myPlayerId = null;
 let currentQuestion = null;
@@ -608,7 +645,7 @@ function triggerShoot() {
 }
 
 function shootRaycastWeapon(damage) {
-  // Hitscan: Check if crosshair aligns with any monster in front
+  // Hitscan: Check if crosshair aligns with any monster or enemy player in front
   let hitMonster = null;
   let minDistance = 999;
 
@@ -617,7 +654,7 @@ function shootRaycastWeapon(damage) {
     const dx = m.x - player.x;
     const dy = m.y - player.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 12) return;
+    if (dist > 14) return;
 
     // Angle to monster vs player view angle
     const angleToMonster = Math.atan2(dy, dx);
@@ -631,6 +668,50 @@ function shootRaycastWeapon(damage) {
       hitMonster = m;
     }
   });
+
+  // Hitscan for other players in PVP or Team mode
+  let hitPlayer = null;
+  let minPlayerDist = 999;
+
+  if (currentDoomSubMode === 'pvp' || currentDoomSubMode === 'team') {
+    Object.values(otherPlayers).forEach(op => {
+      // In team mode, skip teammates (no friendly fire)
+      if (currentDoomSubMode === 'team' && myTeamId && op.teamId && myTeamId === op.teamId) {
+        return;
+      }
+
+      const dx = op.x - player.x;
+      const dy = op.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 14) return;
+
+      const angleToPlayer = Math.atan2(dy, dx);
+      let playerAngle = Math.atan2(player.dirY, player.dirX);
+      let diff = Math.abs(angleToPlayer - playerAngle);
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      diff = Math.abs(diff);
+
+      if (diff < 0.22 && dist < minPlayerDist) {
+        minPlayerDist = dist;
+        hitPlayer = op;
+      }
+    });
+  }
+
+  // Determine closest target (player vs monster)
+  if (hitPlayer && (!hitMonster || minPlayerDist < minDistance)) {
+    spawnDamageText(`-${damage}`, hitPlayer.x, hitPlayer.y);
+    doomSound.playMonsterHurt();
+    showNotification(`🎯 ${hitPlayer.name}님에게 ${damage} 데미지!`);
+    socket.emit('doom-player-hit', {
+      code: roomCode,
+      attackerId: myPlayerId,
+      targetId: hitPlayer.id,
+      damage: damage,
+      weapon: player.weapon
+    });
+    return;
+  }
 
   if (hitMonster) {
     hitMonster.hp -= damage;
@@ -677,7 +758,27 @@ function shootBFGWeapon() {
       }
     }
   });
-  showNotification('💥 BFG 9000 궤멸 펄스 발사! 주변 몬스터 괴멸!');
+
+  // Splash damage on enemies in PVP or Team mode
+  if (currentDoomSubMode === 'pvp' || currentDoomSubMode === 'team') {
+    Object.values(otherPlayers).forEach(op => {
+      if (currentDoomSubMode === 'team' && myTeamId && op.teamId && myTeamId === op.teamId) return;
+      const dx = op.x - player.x;
+      const dy = op.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 15) {
+        socket.emit('doom-player-hit', {
+          code: roomCode,
+          attackerId: myPlayerId,
+          targetId: op.id,
+          damage: 75,
+          weapon: 3
+        });
+      }
+    });
+  }
+
+  showNotification('💥 BFG 9000 궤멸 펄스 발사! 주변 적 괴멸!');
 }
 
 function checkInteraction() {
@@ -1125,9 +1226,22 @@ function renderSprites(w, h) {
         ctx.textBaseline = 'middle';
         ctx.fillText(p.avatar || '🧑‍🚀', spriteScreenX, h / 2);
 
+        // Team Badge Tag (if in Team Mode)
+        if (isTeamMode && (p.teamName || (p.teamId && doomTeams[p.teamId]))) {
+          const tName = p.teamName || (doomTeams[p.teamId] && doomTeams[p.teamId].name) || '';
+          const tColor = p.teamColor || (doomTeams[p.teamId] && doomTeams[p.teamId].color) || '#38bdf8';
+          const tEmoji = p.teamEmoji || (doomTeams[p.teamId] && doomTeams[p.teamId].emoji) || '👥';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.fillStyle = tColor;
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 3;
+          ctx.strokeText(`${tEmoji} ${tName}`, spriteScreenX, drawStartY - 24);
+          ctx.fillText(`${tEmoji} ${tName}`, spriteScreenX, drawStartY - 24);
+        }
+
         // Name Tag
         ctx.font = 'bold 12px sans-serif';
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = (isTeamMode && p.teamColor) ? p.teamColor : '#ffffff';
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = 3;
         ctx.strokeText(p.name, spriteScreenX, drawStartY - 8);
@@ -1565,6 +1679,17 @@ function joinDoomRoom() {
     myPlayerId = res.playerId;
     if (res.currentQuestion) currentQuestion = res.currentQuestion;
 
+    if (res.config && res.config.doomSettings) {
+      currentDoomSubMode = res.config.doomSettings.subMode || 'pve';
+    }
+    isTeamMode = !!res.isTeamMode;
+    if (res.teams) doomTeams = res.teams;
+    if (res.player && res.player.teamId) {
+      myTeamId = res.player.teamId;
+      myTeamInfo = doomTeams[myTeamId] || null;
+    }
+    updateDoomModeHUD();
+
     // Start sync broadcast loop (100ms)
     if (syncInterval) clearInterval(syncInterval);
     syncInterval = setInterval(() => {
@@ -1578,7 +1703,11 @@ function joinDoomRoom() {
         armor: player.armor,
         ammo: player.ammo,
         kills: player.kills,
-        score: player.score
+        score: player.score,
+        teamId: myTeamId,
+        teamName: myTeamInfo ? myTeamInfo.name : '',
+        teamColor: myTeamInfo ? myTeamInfo.color : '',
+        teamEmoji: myTeamInfo ? myTeamInfo.emoji : ''
       });
     }, 100);
   });
@@ -1594,6 +1723,73 @@ function joinDoomRoom() {
   socket.on('doom-player-shot', ({ playerId, weapon }) => {
     if (playerId !== myPlayerId) {
       doomSound.playShotgun();
+    }
+  });
+
+  socket.on('doom-config-updated', (config) => {
+    if (config && config.doomSettings) {
+      currentDoomSubMode = config.doomSettings.subMode || 'pve';
+    }
+    isTeamMode = (currentDoomSubMode === 'team');
+    updateDoomModeHUD();
+    const modeName = currentDoomSubMode === 'pve' ? '🎯 몬스터 사냥' : currentDoomSubMode === 'pvp' ? '⚔️ 플레이어 대전' : '👥 조별 대항전';
+    showNotification(`🎮 호스트가 게임 모드를 [${modeName}]으로 변경했습니다.`);
+  });
+
+  socket.on('teams-updated', (data) => {
+    doomTeams = data.teams || {};
+    isTeamMode = !!data.isTeamMode;
+    if (data.players) {
+      const me = data.players.find(x => x.id === myPlayerId);
+      if (me) {
+        myTeamId = me.teamId;
+        myTeamInfo = doomTeams[myTeamId] || null;
+      }
+      data.players.forEach(p => {
+        if (otherPlayers[p.id]) {
+          otherPlayers[p.id].teamId = p.teamId;
+          if (doomTeams[p.teamId]) {
+            otherPlayers[p.id].teamName = doomTeams[p.teamId].name;
+            otherPlayers[p.id].teamColor = doomTeams[p.teamId].color;
+            otherPlayers[p.id].teamEmoji = doomTeams[p.teamId].emoji;
+          }
+        }
+      });
+    }
+    updateDoomModeHUD();
+  });
+
+  socket.on('doom-you-were-hit', ({ attackerId, attackerName, damage, weapon }) => {
+    // Complete Invulnerability check
+    if (player.invulnerableTimer > 0 || isQuizModalOpen) {
+      showNotification(`🛡️ 무적 쉴드로 ${attackerName}님의 사격을 무효화했습니다!`);
+      return;
+    }
+
+    player.iFrameTimer = 40;
+    player.damageFlash = 15;
+    doomSound.playOof();
+    player.faceState = 'pain';
+    player.faceTimer = 25;
+
+    // Armor absorbs 60% of damage
+    const absorbed = Math.min(player.armor, Math.floor(damage * 0.6));
+    const hpLoss = damage - absorbed;
+    player.armor -= absorbed;
+    player.health = Math.max(0, player.health - hpLoss);
+
+    showNotification(`⚠️ ${attackerName}님에게 피격당했습니다! (-${hpLoss} HP)`);
+
+    if (player.health <= 0) {
+      player.faceState = 'dead';
+      doomSound.playOof();
+      showNotification(`💀 ${attackerName}님에게 전사했습니다! (부활 중...)`);
+      socket.emit('doom-player-killed', {
+        code: roomCode,
+        killerId: attackerId,
+        victimId: myPlayerId
+      });
+      respawnPlayer();
     }
   });
 

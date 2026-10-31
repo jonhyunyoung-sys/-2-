@@ -86,6 +86,27 @@
             </button>
           </div>
 
+          <!-- Game Mode Selector (PVE / PVP / Team) -->
+          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem; margin-bottom: 1rem;">
+            <div style="font-size: 0.88rem; font-weight: 800; color: #f59e0b; margin-bottom: 0.6rem;">
+              🎮 게임 진행 방식 선택
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.35rem; margin-bottom: 0.5rem;">
+              <button type="button" class="btn-diff-preset active" id="subModeBtn_pve" onclick="setDoomSubMode('pve')">
+                🎯 몬스터 사냥
+              </button>
+              <button type="button" class="btn-diff-preset" id="subModeBtn_pvp" onclick="setDoomSubMode('pvp')">
+                ⚔️ 플레이어 대전
+              </button>
+              <button type="button" class="btn-diff-preset" id="subModeBtn_team" onclick="setDoomSubMode('team')">
+                👥 조별 팀전
+              </button>
+            </div>
+            <div id="subModeDesc" style="font-size: 0.75rem; color: #94a3b8; line-height: 1.4;">
+              🎯 몬스터 사냥: 학생 간 공격 불가, 던전 몬스터를 많이 처치하여 경쟁합니다.
+            </div>
+          </div>
+
           <!-- Difficulty & Target Kills -->
           <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border); border-radius: 12px; padding: 0.9rem; margin-bottom: 1.2rem;">
             <span style="font-size: 0.88rem; font-weight: 800; color: #ef4444; display: block; margin-bottom: 0.6rem;">
@@ -104,7 +125,7 @@
           </button>
         </div>
 
-        <!-- Right: Player Lobby Tray -->
+        <!-- Right: Player Lobby Tray / Team Tray -->
         <div class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem;">
             <h2 style="font-size: 1.3rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
@@ -120,8 +141,24 @@
             </div>
           </div>
 
+          <!-- Team Auto-assignment Quick Actions (Visible in Team Mode) -->
+          <div id="teamQuickActions" style="display: none; background: rgba(30, 41, 59, 0.7); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.9rem; margin-bottom: 1rem; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.82rem; font-weight: 800; color: #38bdf8;">⚡ 빠른 자동 조 편성:</span>
+            <div style="display: flex; gap: 0.4rem;">
+              <button type="button" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="autoAssignTeams(2)">2개 조</button>
+              <button type="button" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="autoAssignTeams(3)">3개 조</button>
+              <button type="button" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="autoAssignTeams(4)">4개 조</button>
+            </div>
+          </div>
+
+          <!-- Individual Lobby Grid -->
           <div id="lobbyPlayersGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.8rem; max-height: 400px; overflow-y: auto;">
             <!-- Players Cards -->
+          </div>
+
+          <!-- Teams Lobby Panel (Visible in Team Mode) -->
+          <div id="teamsLobbyPanel" style="display: none; grid-template-columns: repeat(2, 1fr); gap: 0.8rem; max-height: 400px; overflow-y: auto;">
+            <!-- Rendered by JS -->
           </div>
         </div>
       </div>
@@ -160,11 +197,24 @@
 
         <!-- Right: Leaderboard -->
         <div class="card">
-          <h2 style="font-size: 1.25rem; font-weight: 800; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem;">
-            🏆 실시간 소탕 랭킹
-          </h2>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem;">
+            <h2 style="font-size: 1.25rem; font-weight: 800; margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+              🏆 실시간 랭킹
+            </h2>
+            <div id="lbTabGroup" style="display: none; background: rgba(30, 41, 59, 0.8); border-radius: 8px; padding: 2px;">
+              <button type="button" id="lbTabIndividualBtn" class="btn-diff-preset active" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" onclick="setLeaderboardView('individual')">
+                👤 개인
+              </button>
+              <button type="button" id="lbTabTeamBtn" class="btn-diff-preset" style="padding: 0.25rem 0.5rem; font-size: 0.72rem;" onclick="setLeaderboardView('team')">
+                👥 팀
+              </button>
+            </div>
+          </div>
           <div id="doomLeaderboardList" class="leaderboard-table" style="max-height: 460px; overflow-y: auto;">
             <!-- Rows -->
+          </div>
+          <div id="doomTeamLeaderboardList" class="leaderboard-table" style="display: none; max-height: 460px; overflow-y: auto;">
+            <!-- Team Rows -->
           </div>
         </div>
       </div>

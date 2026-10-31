@@ -6,6 +6,17 @@
 const socket = io();
 
 let currentRoomCode = null;
+let isTeamMode = false;
+let currentDoomSubMode = 'pve'; // 'pve', 'pvp', 'team'
+let currentLeaderboardView = 'individual';
+
+let teams = {
+  'team_1': { id: 'team_1', name: '1조 (레드)', color: '#ef4444', emoji: '🔴' },
+  'team_2': { id: 'team_2', name: '2조 (블루)', color: '#3b82f6', emoji: '🔵' },
+  'team_3': { id: 'team_3', name: '3조 (그린)', color: '#10b981', emoji: '🟢' },
+  'team_4': { id: 'team_4', name: '4조 (옐로)', color: '#f59e0b', emoji: '🟡' }
+};
+
 let currentConfig = {
   gameType: 'doom',
   mode: 'race',
@@ -15,6 +26,7 @@ let currentConfig = {
   isTeamMode: false,
   doomSettings: {
     difficulty: 'normal',
+    subMode: 'pve',
     targetKills: 25,
     bossHealth: 1000,
     currentBossHealth: 1000,
@@ -25,6 +37,7 @@ let currentConfig = {
 
 let playersList = [];
 let currentLeaderboard = [];
+let currentTeamLeaderboard = [];
 let lastFinalReport = null;
 let currentBossHealth = 1000;
 let maxBossHealth = 1000;
@@ -98,20 +111,42 @@ socket.on('player-joined', (p) => {
   if (!playersList.find(x => x.id === p.id)) {
     playersList.push(p);
   }
-  renderLobby();
+  if (isTeamMode) renderTeamsLobby();
+  else renderLobby();
 });
 
 socket.on('player-left', ({ id }) => {
   playersList = playersList.filter(x => x.id !== id);
   delete livePlayers[id];
-  renderLobby();
+  if (isTeamMode) renderTeamsLobby();
+  else renderLobby();
+});
+
+socket.on('teams-updated', (data) => {
+  if (data.teams) teams = data.teams;
+  isTeamMode = !!data.isTeamMode;
+  if (data.players) {
+    data.players.forEach(p => {
+      const existing = playersList.find(x => x.id === p.id);
+      if (existing) {
+        existing.teamId = p.teamId;
+      }
+    });
+  }
+  if (isTeamMode) renderTeamsLobby();
+  else renderLobby();
 });
 
 socket.on('leaderboard-updated', (data) => {
   const lb = Array.isArray(data) ? data : (data.leaderboard || []);
   currentLeaderboard = lb;
+  currentTeamLeaderboard = data.teamLeaderboard || [];
   playersList = lb;
-  renderDoomLeaderboard();
+  if (isTeamMode && currentLeaderboardView === 'team') {
+    renderDoomTeamLeaderboard();
+  } else {
+    renderDoomLeaderboard();
+  }
 });
 
 socket.on('doom-player-sync', (p) => {
@@ -130,16 +165,145 @@ socket.on('doom-boss-update', ({ currentHealth, maxHealth }) => {
 socket.on('game-ended', (report) => {
   lastFinalReport = report;
   if (report.leaderboard) currentLeaderboard = report.leaderboard;
+  if (report.teamLeaderboard) currentTeamLeaderboard = report.teamLeaderboard;
 
   document.getElementById('inGameSection').style.display = 'none';
   document.getElementById('btnEndGame').style.display = 'none';
   document.getElementById('podiumSection').style.display = 'block';
 
   document.getElementById('endReasonText').innerText = report.reason;
-  renderPodium(report.podium || report.leaderboard.slice(0, 3));
+  if (report.isTeamMode && report.teamPodium && report.teamPodium.length > 0) {
+    renderTeamPodium(report.teamPodium);
+  } else {
+    renderPodium(report.podium || report.leaderboard.slice(0, 3));
+  }
 
   if (typeof confetti === 'function') confetti({ particleCount: 150, spread: 80 });
 });
+
+// Mode & Team Functions
+function setDoomSubMode(subMode) {
+  currentDoomSubMode = subMode;
+  isTeamMode = (subMode === 'team');
+  currentConfig.doomSettings.subMode = subMode;
+  currentConfig.isTeamMode = isTeamMode;
+
+  ['pve', 'pvp', 'team'].forEach(m => {
+    const btn = document.getElementById(`subModeBtn_${m}`);
+    if (btn) btn.classList.toggle('active', m === subMode);
+  });
+
+  const descEl = document.getElementById('subModeDesc');
+  if (descEl) {
+    if (subMode === 'pve') {
+      descEl.innerText = '🎯 몬스터 사냥: 학생 간 공격 불가, 던전 몬스터를 많이 처치하여 개인별 킬수로 경쟁합니다.';
+    } else if (subMode === 'pvp') {
+      descEl.innerText = '⚔️ 플레이어 대전: 모든 학생이 적이 되어 서로 사격 배틀을 벌이는 데스매치 모드입니다. (처치 시 300P)';
+    } else if (subMode === 'team') {
+      descEl.innerText = '👥 조별 팀전: 아군은 공격할 수 없으며, 상대 팀과 몬스터를 소탕하여 조별 합산 킬수로 경쟁합니다.';
+    }
+  }
+
+  // Toggle Team UI in Lobby
+  const qa = document.getElementById('teamQuickActions');
+  const tp = document.getElementById('teamsLobbyPanel');
+  const lp = document.getElementById('lobbyPlayersGrid');
+  const lbTabs = document.getElementById('lbTabGroup');
+
+  if (qa) qa.style.display = isTeamMode ? 'flex' : 'none';
+  if (tp) tp.style.display = isTeamMode ? 'grid' : 'none';
+  if (lp) lp.style.display = isTeamMode ? 'none' : 'grid';
+  if (lbTabs) lbTabs.style.display = isTeamMode ? 'flex' : 'none';
+
+  socket.emit('set-doom-submode', { code: currentRoomCode, subMode });
+  if (isTeamMode) {
+    renderTeamsLobby();
+  } else {
+    renderLobby();
+  }
+}
+
+function autoAssignTeams(teamCount) {
+  socket.emit('auto-assign-teams', { code: currentRoomCode, teamCount });
+}
+
+function assignPlayerToTeam(playerId, teamId) {
+  socket.emit('assign-player-team', { code: currentRoomCode, playerId, teamId });
+}
+
+function renderTeamsLobby() {
+  const panel = document.getElementById('teamsLobbyPanel');
+  if (!panel) return;
+
+  const count = document.getElementById('playerCount');
+  if (count) count.innerText = playersList.length;
+
+  const teamList = Object.values(teams);
+  if (teamList.length === 0) {
+    panel.innerHTML = '<div style="grid-column: span 2; color: #94a3b8; text-align: center; padding: 1.5rem;">생성된 조가 없습니다. 빠른 자동 조 편성을 눌러주세요.</div>';
+    return;
+  }
+
+  const teamMembers = {};
+  teamList.forEach(t => teamMembers[t.id] = []);
+  const unassigned = [];
+
+  playersList.forEach(p => {
+    if (p.teamId && teamMembers[p.teamId]) {
+      teamMembers[p.teamId].push(p);
+    } else {
+      unassigned.push(p);
+    }
+  });
+
+  panel.innerHTML = teamList.map(t => {
+    const members = teamMembers[t.id] || [];
+    return `
+      <div style="background: rgba(15, 23, 42, 0.85); border: 2px solid ${t.color}; border-radius: 12px; padding: 0.75rem; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.4rem;">
+          <span style="font-weight: 900; color: ${t.color}; font-size: 0.95rem; display: flex; align-items: center; gap: 0.3rem;">
+            <span>${t.emoji}</span> <span>${escapeHtml(t.name)}</span>
+          </span>
+          <span style="font-size: 0.75rem; background: rgba(255,255,255,0.1); padding: 0.1rem 0.4rem; border-radius: 6px; font-weight: 800;">
+            ${members.length}명
+          </span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.35rem; min-height: 40px;">
+          ${members.length === 0 ? '<div style="font-size: 0.75rem; color: #64748b; padding: 0.4rem 0;">배정된 학생 없음</div>' : members.map(m => `
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(30, 41, 59, 0.6); padding: 0.3rem 0.5rem; border-radius: 6px; font-size: 0.82rem;">
+              <span style="display: flex; align-items: center; gap: 0.3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <span>${m.avatar || '🧑‍🚀'}</span>
+                <span style="font-weight: 700; color: #fff;">${escapeHtml(m.name)}</span>
+              </span>
+              <select onchange="assignPlayerToTeam('${m.id}', this.value)" style="background: #0f172a; color: #94a3b8; border: 1px solid #334155; border-radius: 4px; font-size: 0.7rem; padding: 0.1rem 0.3rem; cursor: pointer;">
+                ${teamList.map(opt => `<option value="${opt.id}" ${opt.id === t.id ? 'selected' : ''}>${opt.name}</option>`).join('')}
+              </select>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  if (unassigned.length > 0) {
+    panel.innerHTML += `
+      <div style="grid-column: span 2; background: rgba(30, 41, 59, 0.4); border: 1px dashed #64748b; border-radius: 12px; padding: 0.6rem; margin-top: 0.3rem;">
+        <span style="font-size: 0.8rem; font-weight: 800; color: #94a3b8; margin-bottom: 0.4rem; display: block;">미배정 학생 (${unassigned.length}명):</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 0.4rem;">
+          ${unassigned.map(u => `
+            <span style="background: rgba(15, 23, 42, 0.8); border: 1px solid #475569; padding: 0.2rem 0.5rem; border-radius: 6px; font-size: 0.75rem; display: flex; align-items: center; gap: 0.3rem;">
+              ${u.avatar || '🧑‍🚀'} ${escapeHtml(u.name)}
+              <select onchange="assignPlayerToTeam('${u.id}', this.value)" style="background: #0f172a; color: #38bdf8; border: 1px solid #334155; border-radius: 4px; font-size: 0.68rem; margin-left: 0.2rem; cursor: pointer;">
+                <option value="">조 선택</option>
+                ${teamList.map(opt => `<option value="${opt.id}">${opt.name}</option>`).join('')}
+              </select>
+            </span>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+}
 
 // Lobby Functions
 function renderLobby() {
@@ -215,6 +379,25 @@ function updateBossHealthBar() {
 }
 
 // Leaderboard Table
+function setLeaderboardView(view) {
+  currentLeaderboardView = view;
+  const btnIndiv = document.getElementById('lbTabIndividualBtn');
+  const btnTeam = document.getElementById('lbTabTeamBtn');
+  const indivList = document.getElementById('doomLeaderboardList');
+  const teamList = document.getElementById('doomTeamLeaderboardList');
+
+  if (btnIndiv) btnIndiv.classList.toggle('active', view === 'individual');
+  if (btnTeam) btnTeam.classList.toggle('active', view === 'team');
+  if (indivList) indivList.style.display = (view === 'individual') ? 'block' : 'none';
+  if (teamList) teamList.style.display = (view === 'team') ? 'block' : 'none';
+
+  if (view === 'team') {
+    renderDoomTeamLeaderboard();
+  } else {
+    renderDoomLeaderboard();
+  }
+}
+
 function renderDoomLeaderboard() {
   const tbody = document.getElementById('doomLeaderboardList');
   if (!tbody) return;
@@ -230,6 +413,34 @@ function renderDoomLeaderboard() {
         </span>
         <span style="font-weight: 900; color: #ef4444; text-align: center;">💀 ${p.kills || 0}</span>
         <span style="font-weight: 800; color: #f59e0b; text-align: right;">${(p.score || 0).toLocaleString()}P</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderDoomTeamLeaderboard() {
+  const tbody = document.getElementById('doomTeamLeaderboardList');
+  if (!tbody) return;
+
+  if (currentTeamLeaderboard.length === 0) {
+    tbody.innerHTML = '<div style="padding: 1.5rem; color: #94a3b8; text-align: center;">팀 랭킹 데이터가 없습니다.</div>';
+    return;
+  }
+
+  tbody.innerHTML = currentTeamLeaderboard.map((t, idx) => {
+    const rankBadge = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}위`;
+    return `
+      <div class="leaderboard-row ${idx < 3 ? 'rank-' + (idx + 1) : ''}" style="display: grid; grid-template-columns: 45px 1fr 75px 75px; padding: 0.65rem 0.8rem; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.06); border-left: 4px solid ${t.color || '#38bdf8'};">
+        <span style="font-weight: 900; font-size: 1.1rem; text-align: center;">${rankBadge}</span>
+        <div style="font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <div style="display: flex; align-items: center; gap: 0.35rem; color: ${t.color || '#fff'}; font-size: 0.95rem;">
+            <span>${t.emoji || '👥'}</span>
+            <span>${escapeHtml(t.name)}</span>
+            <span style="font-size: 0.72rem; color: #94a3b8; font-weight: 600;">(${t.memberCount || (t.members ? t.members.length : 0)}명)</span>
+          </div>
+        </div>
+        <span style="font-weight: 900; color: #ef4444; text-align: center;">💀 ${t.totalKills || 0}</span>
+        <span style="font-weight: 800; color: #f59e0b; text-align: right;">${(t.totalScore || 0).toLocaleString()}P</span>
       </div>
     `;
   }).join('');
@@ -324,7 +535,7 @@ function radarLoop() {
       ctx.stroke();
 
       // Player Dot
-      ctx.fillStyle = '#0284c7';
+      ctx.fillStyle = (isTeamMode && p.teamColor) ? p.teamColor : '#0284c7';
       ctx.beginPath();
       ctx.arc(0, 0, 5, 0, Math.PI * 2);
       ctx.fill();
@@ -383,7 +594,43 @@ function renderPodium(podium) {
   `;
 }
 
-// Achievement Modal
+function renderTeamPodium(teamPodium) {
+  const container = document.getElementById('podiumContainer');
+  if (!container || !teamPodium || teamPodium.length === 0) return;
+
+  const t1 = teamPodium[0];
+  const t2 = teamPodium[1];
+  const t3 = teamPodium[2];
+
+  container.innerHTML = `
+    ${t2 ? `
+      <div class="podium-step podium-2" style="background: linear-gradient(to top, rgba(148, 163, 184, 0.3), rgba(148, 163, 184, 0.1)); border: 2px solid ${t2.color || '#94a3b8'}; height: 160px;">
+        <div style="font-size: 2.4rem;">${t2.emoji || '🥈'}</div>
+        <div style="font-weight: 900; font-size: 1.1rem; color: #fff;">${escapeHtml(t2.name)}</div>
+        <div style="font-weight: 800; color: #94a3b8;">💀 총 ${t2.totalKills || 0}킬</div>
+        <div class="podium-rank">2위</div>
+      </div>
+    ` : ''}
+
+    ${t1 ? `
+      <div class="podium-step podium-1" style="background: linear-gradient(to top, rgba(239, 68, 68, 0.35), rgba(245, 158, 11, 0.15)); border: 2px solid ${t1.color || '#ef4444'}; height: 210px;">
+        <div style="font-size: 3rem;">${t1.emoji || '🥇'}</div>
+        <div style="font-weight: 900; font-size: 1.3rem; color: #fff;">${escapeHtml(t1.name)}</div>
+        <div style="font-weight: 900; color: #ef4444; font-size: 1.1rem;">💀 총 ${t1.totalKills || 0}킬 (${(t1.totalScore || 0).toLocaleString()}P)</div>
+        <div class="podium-rank">1위 (최강 전우조)</div>
+      </div>
+    ` : ''}
+
+    ${t3 ? `
+      <div class="podium-step podium-3" style="background: linear-gradient(to top, rgba(217, 119, 6, 0.3), rgba(217, 119, 6, 0.1)); border: 2px solid ${t3.color || '#d97706'}; height: 130px;">
+        <div style="font-size: 2.2rem;">${t3.emoji || '🥉'}</div>
+        <div style="font-weight: 900; font-size: 1rem; color: #fff;">${escapeHtml(t3.name)}</div>
+        <div style="font-weight: 800; color: #d97706;">💀 총 ${t3.totalKills || 0}킬</div>
+        <div class="podium-rank">3위</div>
+      </div>
+    ` : ''}
+  `;
+}
 let currentAchievementSort = 'number';
 
 function openAchievementModal() {
