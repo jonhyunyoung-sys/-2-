@@ -244,9 +244,9 @@ const MAP_H = 24;
 const DUNGEON_MAP = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
   [1,0,0,0,5,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-  [1,0,0,0,0,0,4,0,0,2,0,0,4,0,0,3,0,0,4,0,5,0,0,1],
+  [1,0,0,0,0,0,0,0,0,2,0,0,4,0,0,3,0,0,4,0,5,0,0,1],
   [1,0,0,0,0,0,1,0,0,2,0,0,1,0,0,3,0,0,1,0,0,0,0,1],
-  [1,1,1,4,1,1,1,0,0,2,2,0,1,1,4,1,1,1,1,1,4,1,1,1],
+  [1,1,1,0,1,1,1,0,0,2,2,0,1,1,4,1,1,1,1,1,4,1,1,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
   [1,0,2,2,0,0,2,2,2,0,0,3,3,3,0,0,2,2,2,0,0,2,0,1],
   [1,0,2,0,0,0,0,0,2,0,0,3,0,3,0,0,2,0,0,0,0,2,0,1],
@@ -490,14 +490,16 @@ let monsters = [];
 
 function initMonsters() {
   monsters = [
-    { id: 1, type: 'imp', x: 8.5, y: 3.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 2, type: 'demon', x: 14.5, y: 7.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.028, attackCooldown: 0, isDead: false },
-    { id: 3, type: 'caco', x: 19.5, y: 3.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
-    { id: 4, type: 'imp', x: 7.5, y: 14.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 5, type: 'demon', x: 16.5, y: 14.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.028, attackCooldown: 0, isDead: false },
-    { id: 6, type: 'imp', x: 10.5, y: 17.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
-    { id: 7, type: 'caco', x: 3.5, y: 20.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
-    { id: 8, type: 'demon', x: 18.5, y: 20.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.028, attackCooldown: 0, isDead: false },
+    { id: 1, type: 'imp', x: 6.5, y: 2.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 2, type: 'demon', x: 8.5, y: 2.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
+    { id: 3, type: 'caco', x: 2.5, y: 5.5, hp: 60, maxHp: 60, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
+    { id: 4, type: 'imp', x: 14.5, y: 7.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 5, type: 'demon', x: 19.5, y: 3.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
+    { id: 6, type: 'imp', x: 7.5, y: 14.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 7, type: 'demon', x: 16.5, y: 14.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
+    { id: 8, type: 'imp', x: 10.5, y: 17.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 9, type: 'caco', x: 3.5, y: 20.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
+    { id: 10, type: 'demon', x: 18.5, y: 20.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.026, attackCooldown: 0, isDead: false },
     // Boss in the Boss Chamber
     { id: 99, type: 'boss', x: 12.5, y: 21.5, hp: 700, maxHp: 700, emoji: '💀', name: '사이버 데몬 보스', speed: 0.014, attackCooldown: 0, isDead: false }
   ];
@@ -576,9 +578,9 @@ function setupControls() {
     if (code === 'KeyD' || k === 'd' || k === 'ㅇ') keys.strafeRight = true;
 
     // Turn Left (ArrowLeft, Q, 한글 ㅂ)
-    if (code === 'ArrowLeft' || code === 'KeyQ' || k === 'q' || k === 'ㅂ') keys.turnLeft = true;
-    // Turn Right (ArrowRight)
-    if (code === 'ArrowRight') keys.turnRight = true;
+    if (code === 'ArrowLeft' || code === 'KeyQ' || k === 'arrowleft' || k === 'q' || k === 'ㅂ') keys.turnLeft = true;
+    // Turn Right (ArrowRight, E, 한글 ㄷ)
+    if (code === 'ArrowRight' || code === 'KeyE' || k === 'arrowright' || k === 'e' || k === 'ㄷ') keys.turnRight = true;
 
     // Sprint (Shift)
     if (e.shiftKey || code === 'ShiftLeft' || code === 'ShiftRight') keys.sprint = true;
@@ -589,8 +591,8 @@ function setupControls() {
       triggerShoot();
     }
 
-    // Interaction / Quiz (E, Enter, 한글 ㄷ)
-    if (code === 'KeyE' || k === 'e' || k === 'ㄷ' || code === 'Enter') {
+    // Interaction / Quiz (F, Enter, 한글 ㄹ, 또는 문 앞에서의 E)
+    if (code === 'KeyF' || k === 'f' || k === 'ㄹ' || code === 'Enter') {
       checkInteraction();
     }
 
@@ -608,8 +610,8 @@ function setupControls() {
     if (code === 'KeyS' || code === 'ArrowDown' || k === 's' || k === 'ㄴ') keys.backward = false;
     if (code === 'KeyA' || k === 'a' || k === 'ㅁ') keys.strafeLeft = false;
     if (code === 'KeyD' || k === 'd' || k === 'ㅇ') keys.strafeRight = false;
-    if (code === 'ArrowLeft' || code === 'KeyQ' || k === 'q' || k === 'ㅂ') keys.turnLeft = false;
-    if (code === 'ArrowRight') keys.turnRight = false;
+    if (code === 'ArrowLeft' || code === 'KeyQ' || k === 'arrowleft' || k === 'q' || k === 'ㅂ') keys.turnLeft = false;
+    if (code === 'ArrowRight' || code === 'KeyE' || k === 'arrowright' || k === 'e' || k === 'ㄷ') keys.turnRight = false;
     if (!e.shiftKey && (code === 'ShiftLeft' || code === 'ShiftRight')) keys.sprint = false;
   });
 
@@ -624,11 +626,33 @@ function setupControls() {
     keys.sprint = false;
   });
 
-  // Mouse click to shoot
+  // Mouse Drag Look (PC) & Click to Shoot
+  let isMouseLooking = false;
+  let mouseStartX = 0;
+  let mouseMoved = false;
+
   canvas.addEventListener('mousedown', (e) => {
-    if (e.button === 0 && !isQuizModalOpen) {
+    if (isQuizModalOpen) return;
+    isMouseLooking = true;
+    mouseStartX = e.clientX;
+    mouseMoved = false;
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isMouseLooking || isQuizModalOpen) return;
+    const deltaX = e.clientX - mouseStartX;
+    if (Math.abs(deltaX) > 1.5) {
+      mouseMoved = true;
+      mouseStartX = e.clientX;
+      rotatePlayer(deltaX * 0.0055);
+    }
+  });
+
+  window.addEventListener('mouseup', (e) => {
+    if (isMouseLooking && !mouseMoved && e.button === 0 && !isQuizModalOpen) {
       triggerShoot();
     }
+    isMouseLooking = false;
   });
 
   // Touch Controls for Mobile & Tablets
@@ -847,11 +871,13 @@ function setupTouchControls() {
 
     const press = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       keys[keyName] = true;
       el.classList.add('active');
     };
     const release = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       keys[keyName] = false;
       el.classList.remove('active');
     };
@@ -868,20 +894,46 @@ function setupTouchControls() {
   bindTouchButton('btnTouchLeft', 'strafeLeft');
   bindTouchButton('btnTouchRight', 'strafeRight');
 
-  // Turn Buttons
-  bindTouchButton('btnTouchTurnLeft', 'turnLeft');
-  bindTouchButton('btnTouchTurnRight', 'turnRight');
+  // Dedicated Turn Buttons (Instant step + Continuous hold)
+  const bindTurnButton = (elementId, keyName, stepAngle) => {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      rotatePlayer(stepAngle); // Immediate step turn
+      keys[keyName] = true;
+      el.classList.add('active');
+    });
+
+    const release = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      keys[keyName] = false;
+      el.classList.remove('active');
+    };
+
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', release);
+  };
+
+  bindTurnButton('btnTouchTurnLeft', 'turnLeft', -0.22);
+  bindTurnButton('btnTouchTurnRight', 'turnRight', 0.22);
 
   // Action Buttons
   const shootBtn = document.getElementById('btnTouchShoot');
   if (shootBtn) {
     shootBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       shootBtn.classList.add('active');
       triggerShoot();
     });
     const releaseShoot = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       shootBtn.classList.remove('active');
     };
     shootBtn.addEventListener('pointerup', releaseShoot);
@@ -892,11 +944,13 @@ function setupTouchControls() {
   if (quizBtn) {
     quizBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      e.stopPropagation();
       quizBtn.classList.add('active');
       checkInteraction();
     });
     const releaseQuiz = (e) => {
       e.preventDefault();
+      e.stopPropagation();
       quizBtn.classList.remove('active');
     };
     quizBtn.addEventListener('pointerup', releaseQuiz);
@@ -938,6 +992,15 @@ function setupTouchControls() {
         touchLookId = null;
         break;
       }
+    }
+    // Safety release: If no touches left on screen, reset all virtual keys
+    if (e.touches && e.touches.length === 0) {
+      keys.turnLeft = false;
+      keys.turnRight = false;
+      keys.forward = false;
+      keys.backward = false;
+      keys.strafeLeft = false;
+      keys.strafeRight = false;
     }
   };
   window.addEventListener('touchend', endTouchLook);
@@ -1074,13 +1137,8 @@ function updateMonsters() {
     const dy = player.y - m.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Spawn Safe Zone Protection: Monsters cannot enter initial spawn area (x < 6 && y < 6)
-    if (player.x < 5.8 && player.y < 5.8 && (m.x > 6 || m.y > 6)) {
-      return; // Do not pursue player into safe spawn room
-    }
-
     // If close enough, pursue player
-    if (dist < 8.5 && dist > 1.05) {
+    if (dist < 11 && dist > 1.1) {
       const stepX = (dx / dist) * m.speed;
       const stepY = (dy / dist) * m.speed;
       if (canMoveTo(m.x + stepX, m.y)) m.x += stepX;
@@ -1088,7 +1146,7 @@ function updateMonsters() {
     }
 
     // Monster melee attack if very close and cooldown ready
-    if (dist <= 1.05 && m.attackCooldown <= 0) {
+    if (dist <= 1.1 && m.attackCooldown <= 0) {
       // 100% Invulnerability check: Spawn grace period, i-frame, or quiz open
       if (player.invulnerableTimer > 0 || player.iFrameTimer > 0 || isQuizModalOpen) {
         return; // Complete invulnerability!
@@ -1352,9 +1410,13 @@ function renderSprites(w, h) {
     const drawStartX = Math.max(0, -spriteWidth / 2 + spriteScreenX);
     const drawEndX = Math.min(w - 1, spriteWidth / 2 + spriteScreenX);
 
-    // Check Z-buffer at center
-    if (spriteScreenX >= 0 && spriteScreenX < w && transformY < zBuffer[spriteScreenX]) {
-      const size = Math.min(spriteHeight, 180);
+    // Check Z-buffer: Sprite is visible on screen and in front of wall
+    const centerClamped = Math.max(0, Math.min(w - 1, spriteScreenX));
+    const isVisibleOnScreen = (drawEndX >= 0 && drawStartX < w);
+    const isNotBlockedByWall = transformY < ((zBuffer[centerClamped] || 999) + 0.4);
+
+    if (isVisibleOnScreen && isNotBlockedByWall) {
+      const size = Math.max(30, Math.min(spriteHeight, 200));
 
       if (sp.type === 'monster') {
         const m = sp.data;
