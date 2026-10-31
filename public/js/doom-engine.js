@@ -444,12 +444,12 @@ const player = {
   dirY: 0,
   planeX: 0,
   planeY: 0.66, // FOV ~66 degrees
-  moveSpeed: 0.055,
-  rotSpeed: 0.045,
+  moveSpeed: 0.065,
+  rotSpeed: 0.05,
 
   health: 100,
-  armor: 50,
-  ammo: 50,
+  armor: 100,
+  ammo: 60,
   kills: 0,
   score: 0,
   streak: 0,
@@ -467,6 +467,8 @@ const player = {
 
   bfgUnlocked: false,
   damageFlash: 0,
+  invulnerableTimer: 300, // 5 seconds initial spawn invulnerability!
+  iFrameTimer: 0, // Post-damage grace period
   faceState: 'normal', // 'normal', 'grin', 'hurt', 'dead'
   faceTimer: 0
 };
@@ -482,21 +484,21 @@ const keys = {
   shoot: false
 };
 
-// Monsters in the Dungeon
+// Monsters in the Dungeon (Placed safely away from initial spawn room)
 let monsters = [];
 
 function initMonsters() {
   monsters = [
-    { id: 1, type: 'imp', x: 4.5, y: 2.5, hp: 40, maxHp: 40, emoji: '👹', name: '화염 임프', speed: 0.022, isDead: false },
-    { id: 2, type: 'demon', x: 8.5, y: 7.5, hp: 60, maxHp: 60, emoji: '👿', name: '핑키 데몬', speed: 0.035, isDead: false },
-    { id: 3, type: 'imp', x: 13.5, y: 8.5, hp: 40, maxHp: 40, emoji: '👹', name: '화염 임프', speed: 0.022, isDead: false },
-    { id: 4, type: 'caco', x: 19.5, y: 3.5, hp: 80, maxHp: 80, emoji: '👁️', name: '카코데몬', speed: 0.018, isDead: false },
-    { id: 5, type: 'demon', x: 16.5, y: 14.5, hp: 60, maxHp: 60, emoji: '👿', name: '핑키 데몬', speed: 0.035, isDead: false },
-    { id: 6, type: 'imp', x: 7.5, y: 15.5, hp: 40, maxHp: 40, emoji: '👹', name: '화염 임프', speed: 0.022, isDead: false },
-    { id: 7, type: 'caco', x: 3.5, y: 20.5, hp: 80, maxHp: 80, emoji: '👁️', name: '카코데몬', speed: 0.018, isDead: false },
-    { id: 8, type: 'demon', x: 10.5, y: 21.5, hp: 60, maxHp: 60, emoji: '👿', name: '핑키 데몬', speed: 0.035, isDead: false },
+    { id: 1, type: 'imp', x: 8.5, y: 3.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 2, type: 'demon', x: 14.5, y: 7.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.028, attackCooldown: 0, isDead: false },
+    { id: 3, type: 'caco', x: 19.5, y: 3.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
+    { id: 4, type: 'imp', x: 7.5, y: 14.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 5, type: 'demon', x: 16.5, y: 14.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.028, attackCooldown: 0, isDead: false },
+    { id: 6, type: 'imp', x: 10.5, y: 17.5, hp: 35, maxHp: 35, emoji: '👹', name: '화염 임프', speed: 0.020, attackCooldown: 0, isDead: false },
+    { id: 7, type: 'caco', x: 3.5, y: 20.5, hp: 70, maxHp: 70, emoji: '👁️', name: '카코데몬', speed: 0.016, attackCooldown: 0, isDead: false },
+    { id: 8, type: 'demon', x: 18.5, y: 20.5, hp: 50, maxHp: 50, emoji: '👿', name: '핑키 데몬', speed: 0.028, attackCooldown: 0, isDead: false },
     // Boss in the Boss Chamber
-    { id: 99, type: 'boss', x: 12.5, y: 21.5, hp: 800, maxHp: 800, emoji: '💀', name: '사이버 데몬 보스', speed: 0.015, isDead: false }
+    { id: 99, type: 'boss', x: 12.5, y: 21.5, hp: 700, maxHp: 700, emoji: '💀', name: '사이버 데몬 보스', speed: 0.014, attackCooldown: 0, isDead: false }
   ];
 }
 initMonsters();
@@ -732,11 +734,15 @@ function updatePlayerMovement() {
   if (player.kickY > 0) player.kickY *= 0.82;
   if (player.muzzleFlash > 0) player.muzzleFlash--;
   if (player.damageFlash > 0) player.damageFlash--;
+  if (player.invulnerableTimer > 0) player.invulnerableTimer--;
+  if (player.iFrameTimer > 0) player.iFrameTimer--;
+
   if (player.faceTimer > 0) {
     player.faceTimer--;
     if (player.faceTimer <= 0) player.faceState = 'normal';
   }
 
+  // Complete pause & 100% invulnerability during quiz solving
   if (isQuizModalOpen) return;
 
   const mSpeed = player.moveSpeed;
@@ -802,30 +808,52 @@ function canMoveTo(x, y) {
 }
 
 function updateMonsters() {
+  // If player is solving quiz, freeze monster movement & attacks completely
+  if (isQuizModalOpen) return;
+
   monsters.forEach(m => {
     if (m.isDead) return;
+    if (m.attackCooldown > 0) m.attackCooldown--;
 
     const dx = player.x - m.x;
     const dy = player.y - m.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
+    // Spawn Safe Zone Protection: Monsters cannot enter initial spawn area (x < 6 && y < 6)
+    if (player.x < 5.8 && player.y < 5.8 && (m.x > 6 || m.y > 6)) {
+      return; // Do not pursue player into safe spawn room
+    }
+
     // If close enough, pursue player
-    if (dist < 10 && dist > 0.9) {
+    if (dist < 8.5 && dist > 1.05) {
       const stepX = (dx / dist) * m.speed;
       const stepY = (dy / dist) * m.speed;
       if (canMoveTo(m.x + stepX, m.y)) m.x += stepX;
       if (canMoveTo(m.x, m.y + stepY)) m.y += stepY;
     }
 
-    // Monster melee attack if very close
-    if (dist <= 0.95 && Math.random() < 0.035) {
-      const dmg = (m.type === 'boss') ? 30 : 12;
-      player.health = Math.max(0, player.health - dmg);
-      player.damageFlash = 8;
+    // Monster melee attack if very close and cooldown ready
+    if (dist <= 1.05 && m.attackCooldown <= 0) {
+      // 100% Invulnerability check: Spawn grace period, i-frame, or quiz open
+      if (player.invulnerableTimer > 0 || player.iFrameTimer > 0 || isQuizModalOpen) {
+        return; // Complete invulnerability!
+      }
+
+      m.attackCooldown = 80; // ~1.3s attack cooldown
+      player.iFrameTimer = 55; // ~0.9s post-hit invulnerability
+
+      // Balanced damage: Armor absorbs 60% of damage
+      const rawDmg = (m.type === 'boss') ? 20 : (m.type === 'caco') ? 12 : (m.type === 'demon') ? 10 : 6;
+      const absorbed = Math.min(player.armor, Math.floor(rawDmg * 0.6));
+      const hpDmg = rawDmg - absorbed;
+
+      player.armor = Math.max(0, player.armor - absorbed);
+      player.health = Math.max(0, player.health - hpDmg);
+      player.damageFlash = 5;
       player.faceState = 'hurt';
-      player.faceTimer = 20;
+      player.faceTimer = 22;
       doomSound.playPlayerHurt();
-      showNotification(`😱 ${m.name}에게 피격당했습니다! (-${dmg} HP)`);
+      showNotification(`😱 ${m.name}의 공격! (체력 -${hpDmg}, 쉴드 -${absorbed})`);
 
       if (player.health <= 0) {
         player.faceState = 'dead';
@@ -972,6 +1000,38 @@ function renderDoom3D() {
     ctx.fillStyle = 'rgba(16, 185, 129, 0.35)'; // BFG green flash
     ctx.fillRect(0, 0, w, h);
     player.damageFlash++;
+  }
+
+  // 5-1. Render Invulnerability Shield Overlay & Banner
+  if (player.invulnerableTimer > 0) {
+    const pulse = 0.2 + 0.15 * Math.sin(Date.now() * 0.008);
+    ctx.strokeStyle = `rgba(56, 189, 248, ${pulse + 0.3})`;
+    ctx.lineWidth = 10;
+    ctx.strokeRect(4, 4, w - 8, h - 8);
+
+    // Shield status badge
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.fillRect(w / 2 - 120, 20, 240, 30);
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(w / 2 - 120, 20, 240, 30);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🛡️ 스폰 무적 보호 중 (${(player.invulnerableTimer / 60).toFixed(1)}초)`, w / 2, 40);
+  } else if (isQuizModalOpen) {
+    // 100% Quiz Invulnerability Banner
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+    ctx.fillRect(w / 2 - 130, 20, 260, 30);
+    ctx.strokeStyle = '#10b981';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(w / 2 - 130, 20, 260, 30);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🛡️ 퀴즈 푸는 중: 완전 무적 보호 작동 중', w / 2, 40);
   }
 
   // 6. Draw Crosshair
@@ -1328,17 +1388,18 @@ function submitQuizAnswer(answerIndex) {
       player.streak = res.streak;
       player.score += 250;
       if (res.bfgUnlocked) player.bfgUnlocked = true;
+      player.invulnerableTimer = 120; // 2 seconds bonus invulnerability after correct answer!
 
       // Unlock nearby Quiz Door (tile 4 -> 0)
       unlockNearbyDoor();
 
-      showNotification(`🎉 정답! 탄약(+${res.ammoGain}) & 체력(+${res.healthGain}) 충전 완료!`);
+      showNotification(`🎉 정답! 탄약(+${res.ammoGain}) & 체력(+${res.healthGain}) 충전 및 쉴드 활성화!`);
       closeQuizModal();
     } else {
       doomSound.playQuizWrong();
       player.streak = 0;
       player.health = Math.max(10, player.health - 15);
-      player.damageFlash = 8;
+      player.damageFlash = 6;
       player.faceState = 'hurt';
       player.faceTimer = 20;
       showNotification('❌ 오답! 몬스터의 반격으로 체력이 감소했습니다! (-15 HP)');
@@ -1374,14 +1435,30 @@ function showGameOverModal() {
 
 function respawnPlayer() {
   player.health = 100;
-  player.armor = 50;
-  player.ammo = 50;
+  player.armor = 100;
+  player.ammo = 60;
   player.x = 2.5;
   player.y = 2.5;
+  player.dirX = 1;
+  player.dirY = 0;
+  player.planeX = 0;
+  player.planeY = 0.66;
+  player.invulnerableTimer = 300; // 5초간 무적 보호!
+  player.iFrameTimer = 60;
   player.faceState = 'normal';
+
+  // Push away any monsters near safe spawn room
+  monsters.forEach(m => {
+    if (!m.isDead && Math.hypot(m.x - 2.5, m.y - 2.5) < 7) {
+      m.x = 10.5;
+      m.y = 14.5;
+      m.attackCooldown = 120;
+    }
+  });
+
   const modal = document.getElementById('doomGameOverModal');
   if (modal) modal.style.display = 'none';
-  showNotification('⚡ 리스폰 완료! 복수를 시작하세요!');
+  showNotification('🛡️ 리스폰 완료! 5초간 무적 쉴드가 활성화되었습니다!');
 }
 
 // ============================================================================
@@ -1431,6 +1508,7 @@ function setupDoomJoinUI() {
     player.nickname = paramName;
     player.studentNo = paramStudentNo ? parseInt(paramStudentNo, 10) : null;
     player.avatar = paramAvatar || '🧑‍🚀';
+    player.invulnerableTimer = 300; // 5초간 스폰 무적!
     modal.style.display = 'none';
     joinDoomRoom();
   } else {
@@ -1458,6 +1536,7 @@ window.submitDoomJoin = function(e) {
   player.nickname = nickVal;
   player.name = sNo ? `${sNo}번 ${nickVal}` : nickVal;
   player.avatar = selectedDoomAvatar || '🧑‍🚀';
+  player.invulnerableTimer = 300; // 입장 후 5초간 스폰 무적 보호!
 
   if (sNo) localStorage.setItem('bmn_studentNo', String(sNo));
   else localStorage.removeItem('bmn_studentNo');

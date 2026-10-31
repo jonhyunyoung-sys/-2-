@@ -281,6 +281,32 @@ function radarLoop() {
       }
     }
 
+    // 1-1. Draw Spawn Safe Zone (Top-Left Green Box)
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.12)';
+    ctx.fillRect(cellSize, cellSize, 5 * cellSize, 5 * cellSize);
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(cellSize, cellSize, 5 * cellSize, 5 * cellSize);
+
+    // 1-2. Draw Monsters on Radar
+    const radarMonsters = [
+      { x: 8.5, y: 3.5, emoji: '👹' },
+      { x: 14.5, y: 7.5, emoji: '👿' },
+      { x: 19.5, y: 3.5, emoji: '👁️' },
+      { x: 7.5, y: 14.5, emoji: '👹' },
+      { x: 16.5, y: 14.5, emoji: '👿' },
+      { x: 10.5, y: 17.5, emoji: '👹' },
+      { x: 3.5, y: 20.5, emoji: '👁️' },
+      { x: 18.5, y: 20.5, emoji: '👿' },
+      { x: 12.5, y: 21.5, emoji: '💀' }
+    ];
+    radarMonsters.forEach(m => {
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(m.emoji, m.x * cellSize, m.y * cellSize);
+    });
+
     // 2. Draw Live Players (Dot + Direction Needle + Name Tag)
     Object.values(livePlayers).forEach(p => {
       const px = p.x * cellSize;
