@@ -234,6 +234,132 @@ app.get('/api/template/quiz-excel', (req, res) => {
   }
 });
 
+// GET /api/room/:code/report - Full quiz & student achievement report for Google Sheets / Excel
+app.get('/api/room/:code/report', (req, res) => {
+  const room = rooms[req.params.code];
+  if (!room) {
+    return res.status(404).json({ success: false, error: '방을 찾을 수 없습니다.' });
+  }
+  res.json({ success: true, report: room.getDetailedReport() });
+});
+
+// GET /api/room/:code/export/csv - Download Google Sheets compatible UTF-8 BOM CSV
+app.get('/api/room/:code/export/csv', (req, res) => {
+  const room = rooms[req.params.code];
+  if (!room) {
+    return res.status(404).send('방을 찾을 수 없습니다.');
+  }
+
+  const report = room.getDetailedReport();
+  const sorted = report.sortedByNo || [];
+  const qStats = report.questionStats || [];
+
+  // Helper to escape CSV cell
+  const esc = (val) => {
+    if (val === null || val === undefined) return '""';
+    const s = String(val).replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  let csv = '\uFEFF'; // UTF-8 BOM for Korean Excel & Google Sheets
+
+  // Section 1: Overview
+  csv += `[배움날개 퀴즈 성취도 보고서]\n`;
+  csv += `방 번호,${esc(report.roomCode)},게임 모드,${esc(report.gameType)},총 참가 학생,${report.totalStudents}명\n`;
+  csv += `생성 일시,${esc(new Date().toLocaleString('ko-KR'))},전체 평균 정답률,${report.avgAccuracy}%,총 푼 문제수,${report.totalQuestionsAnswered}개\n\n`;
+
+  // Section 2: Student Achievement (Attendance No Order)
+  csv += `[1. 학생별 성취도 (출석번호순)]\n`;
+  csv += `출석번호,이름(별명),소속 조,최종 순위,최종 기록(점수/머니/고도),맞힌 문제수,틀린 문제수,총 문제수,정답률(%),최대 연속정답(Streak)\n`;
+  
+  sorted.forEach(p => {
+    const rank = report.leaderboard.findIndex(item => item.id === p.id) + 1;
+    const finalScore = (report.gameType === 'dont-look-down') 
+      ? `${p.altitude}m` 
+      : (report.gameType === 'doom') 
+      ? `${p.score}P (${p.kills}킬)` 
+      : `$${p.balance}`;
+    const totalQ = p.totalQuestions || ((p.correctCount || 0) + (p.wrongCount || 0));
+    csv += [
+      esc(p.studentNo != null && p.studentNo !== '' ? p.studentNo : ''),
+      esc(p.nickname || p.name),
+      esc(p.teamName || '-'),
+      rank,
+      esc(finalScore),
+      p.correctCount || 0,
+      p.wrongCount || 0,
+      totalQ,
+      p.accuracy != null ? p.accuracy : 0,
+      p.maxStreak || p.streak || 0
+    ].join(',') + '\n';
+  });
+
+  // Section 3: Question-by-question Accuracy & Vulnerability Analysis
+  if (qStats.length > 0) {
+    csv += `\n[2. 문항별 정답률 및 취약 문제 분석]\n`;
+    csv += `문항 번호,문제 내용,정답,정답 횟수,오답 횟수,총 시도,정답률(%),난이도 분석\n`;
+    qStats.forEach((qs, idx) => {
+      const difficulty = qs.accuracy >= 80 ? '쉬움' : qs.accuracy >= 50 ? '보통' : '어려움(보충 필요)';
+      csv += [
+        idx + 1,
+        esc(qs.question),
+        esc(qs.correctAnswer),
+        qs.correctCount,
+        qs.wrongCount,
+        qs.totalAttempts,
+        `${qs.accuracy}%`,
+        esc(difficulty)
+      ].join(',') + '\n';
+    });
+  }
+
+  // Section 4: Team Results (If team mode)
+  if (report.teamLeaderboard && report.teamLeaderboard.length > 0) {
+    csv += `\n[3. 조별 대항전 성적]\n`;
+    csv += `팀 순위,팀명,팀원 수,팀 총점,팀 평균,팀 총 정답수,팀원 명단\n`;
+    report.teamLeaderboard.forEach((t, idx) => {
+      const members = (t.members || []).map(m => m.name || m.nickname).join('; ');
+      csv += [
+        idx + 1,
+        esc(t.name),
+        t.memberCount || (t.members ? t.members.length : 0),
+        t.totalBalance || t.totalScore || 0,
+        t.avgBalance || 0,
+        t.correctCount || 0,
+        esc(members)
+      ].join(',') + '\n';
+    });
+  }
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  const filename = `배움날개_구글시트성취도_${report.roomCode}_${dateStr}.csv`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+  res.send(csv);
+});
+
+// POST /api/export/google-sheets - Proxy webhook dispatch to Google Apps Script
+app.post('/api/export/google-sheets', async (req, res) => {
+  const { webhookUrl, reportData } = req.body;
+  if (!webhookUrl || !webhookUrl.startsWith('https://script.google.com/')) {
+    return res.status(400).json({ success: false, error: '유효한 Google Apps Script 웹앱 URL을 입력해주세요.' });
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reportData)
+    });
+    const text = await response.text();
+    res.json({ success: true, message: '구글 시트로 성공적으로 전송되었습니다.', response: text });
+  } catch (err) {
+    res.status(500).json({ success: false, error: '구글 시트 전송 오류: ' + err.message });
+  }
+});
+
 // Upgrade tier definitions
 const UPGRADES = {
   moneyPerQuestion: [
@@ -341,6 +467,9 @@ class GameRoom {
       'team_1': { ...DEFAULT_TEAMS[0] },
       'team_2': { ...DEFAULT_TEAMS[1] }
     };
+
+    // Question-level response analytics for Google Sheets & Report export
+    this.questionStats = {}; // qKey -> { id, question, options, correctAnswer, correctCount, wrongCount, totalAttempts }
   }
 
   addPlayer(id, name, avatar, socketId = null, isBot = false, studentNo = null, nickname = null) {
@@ -606,6 +735,70 @@ class GameRoom {
         }
         return b.balance - a.balance;
       });
+  }
+
+  recordQuestionStat(q, isCorrect) {
+    if (!q || !q.question) return;
+    const qKey = q.id || q.question;
+    if (!this.questionStats[qKey]) {
+      this.questionStats[qKey] = {
+        id: q.id || qKey,
+        question: q.question,
+        options: q.options || [],
+        correctAnswer: (q.options && q.options[q.answer] !== undefined) ? q.options[q.answer] : q.answer,
+        correctCount: 0,
+        wrongCount: 0,
+        totalAttempts: 0
+      };
+    }
+    this.questionStats[qKey].totalAttempts++;
+    if (isCorrect) this.questionStats[qKey].correctCount++;
+    else this.questionStats[qKey].wrongCount++;
+  }
+
+  getQuestionStatsList() {
+    return Object.values(this.questionStats).map(qs => {
+      const accuracy = qs.totalAttempts > 0 ? Math.round((qs.correctCount / qs.totalAttempts) * 100) : 0;
+      return {
+        ...qs,
+        accuracy
+      };
+    }).sort((a, b) => a.accuracy - b.accuracy); // Sort by lowest accuracy (hardest questions first)
+  }
+
+  getDetailedReport() {
+    const leaderboard = this.getLeaderboard();
+    const sortedByNo = [...leaderboard].sort((a, b) => {
+      const aNo = (a.studentNo != null && a.studentNo !== '') ? Number(a.studentNo) : 999999;
+      const bNo = (b.studentNo != null && b.studentNo !== '') ? Number(b.studentNo) : 999999;
+      if (aNo !== bNo) return aNo - bNo;
+      return (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '', 'ko');
+    });
+    const teamLeaderboard = this.config.isTeamMode ? this.getTeamLeaderboard() : [];
+    const questionStats = this.getQuestionStatsList();
+
+    const totalStudents = leaderboard.length;
+    let totalQuestionsAnswered = 0;
+    let totalCorrect = 0;
+    leaderboard.forEach(p => {
+      totalQuestionsAnswered += (p.totalQuestions || 0);
+      totalCorrect += (p.correctCount || 0);
+    });
+    const avgAccuracy = totalQuestionsAnswered > 0 ? Math.round((totalCorrect / totalQuestionsAnswered) * 100) : 0;
+
+    return {
+      roomCode: this.code,
+      gameType: this.config.gameType,
+      quizSetId: this.config.quizSetId,
+      totalStudents,
+      avgAccuracy,
+      totalQuestionsAnswered,
+      leaderboard,
+      sortedByNo,
+      teamLeaderboard,
+      questionStats,
+      generatedAt: new Date().toISOString()
+    };
   }
 
   addEventLog(text, icon = '📢') {
@@ -914,6 +1107,7 @@ class GameRoom {
     if (!q) return null;
 
     const isCorrect = (answerIndex === q.answer);
+    this.recordQuestionStat(q, isCorrect);
     let delta = 0;
 
     const mpq = UPGRADES.moneyPerQuestion[player.upgrades.moneyPerQuestion - 1].value;
@@ -1123,10 +1317,15 @@ class GameRoom {
 
     const leaderboard = this.getLeaderboard();
     const teamLeaderboard = this.config.isTeamMode ? this.getTeamLeaderboard() : [];
+    const questionStats = this.getQuestionStatsList();
+    const detailedReport = this.getDetailedReport();
+
     const finalReport = {
       reason,
       leaderboard,
       teamLeaderboard,
+      questionStats,
+      detailedReport,
       isTeamMode: !!this.config.isTeamMode,
       podium: leaderboard.slice(0, 3),
       teamPodium: teamLeaderboard.slice(0, 3),
@@ -1697,6 +1896,7 @@ io.on('connection', (socket) => {
     if (!q) return callback({ success: false, error: '문제가 없습니다.' });
 
     const isCorrect = (answerIndex === q.answer);
+    room.recordQuestionStat(q, isCorrect);
     let ammoGain = 0;
     let healthGain = 0;
     let bfgUnlocked = false;

@@ -236,7 +236,10 @@
           <button class="btn btn-outline" style="padding: 0.85rem 1.6rem; font-size: 1.05rem; font-weight: 800; border-color: #38bdf8; color: #38bdf8; background: rgba(56, 189, 248, 0.1);" onclick="openAchievementModal()">
             📊 학생별 성취도 상세 열람
           </button>
-          <button class="btn btn-primary" style="padding: 0.85rem 1.8rem; font-size: 1.05rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);" onclick="downloadAchievementExcel()">
+          <button class="btn btn-primary" style="padding: 0.85rem 1.8rem; font-size: 1.05rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);" onclick="openGoogleSheetsModal()">
+            📗 구글 시트로 내보내기
+          </button>
+          <button class="btn btn-outline" style="padding: 0.85rem 1.6rem; font-size: 1.05rem; font-weight: 800; border-color: #10b981; color: #10b981;" onclick="downloadAchievementExcel()">
             📥 엑셀 시트(.xlsx) 다운로드
           </button>
           <button class="btn btn-outline" style="padding: 0.85rem 1.5rem; font-size: 1.05rem; font-weight: 800;" onclick="location.reload()">
@@ -259,9 +262,12 @@
             출석번호순으로 확인하고 엑셀 시트로 즉시 저장하세요.
           </p>
         </div>
-        <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981);" onclick="downloadAchievementExcel()">
-            📥 엑셀 다운로드 (.xlsx)
+        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+          <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 900; background: #0f9d58;" onclick="openGoogleSheetsModal()">
+            📗 구글 시트로 내보내기
+          </button>
+          <button class="btn btn-outline" style="padding: 0.5rem 0.9rem; font-size: 0.85rem; font-weight: 800; border-color: #10b981; color: #10b981;" onclick="downloadAchievementExcel()">
+            📥 엑셀 (.xlsx)
           </button>
           <button class="btn btn-outline" style="padding: 0.4rem 0.7rem; font-size: 0.9rem;" onclick="closeAchievementModal()">✕</button>
         </div>
@@ -310,6 +316,7 @@
   <script src="/js/xlsx.full.min.js"></script>
   <script src="/js/sound.js"></script>
   <script src="/js/quiz-manager.js"></script>
+  <script src="/js/google-sheets-export.js"></script>
   <script src="/js/host-doom.js"></script>
 </body>
 </html>

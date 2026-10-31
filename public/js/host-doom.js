@@ -771,6 +771,29 @@ function downloadAchievementExcel() {
   });
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheet2Data), '최종 랭킹 순위');
 
+  // 3. 문항별 정답률 및 취약 문제 분석 시트
+  const qStats = (lastFinalReport && lastFinalReport.questionStats) ? lastFinalReport.questionStats : [];
+  if (qStats && qStats.length > 0) {
+    const sheet3Data = [
+      ['문항 번호', '문제 내용', '정답', '정답 횟수', '오답 횟수', '총 시도', '정답률(%)', '난이도 분석']
+    ];
+    qStats.forEach((qs, idx) => {
+      const diff = qs.accuracy >= 80 ? '쉬움' : qs.accuracy >= 50 ? '보통' : '어려움(보충 필요)';
+      sheet3Data.push([
+        idx + 1,
+        qs.question,
+        qs.correctAnswer,
+        qs.correctCount,
+        qs.wrongCount,
+        qs.totalAttempts,
+        `${qs.accuracy}%`,
+        diff
+      ]);
+    });
+    const ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);
+    XLSX.utils.book_append_sheet(wb, ws3, '문항별 정답률 및 취약분석');
+  }
+
   const now = new Date();
   const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
   const fileName = `배움날개_둠3D_성취도_${currentRoomCode}_${dateStr}.xlsx`;
