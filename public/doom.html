@@ -69,46 +69,197 @@
       box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
       white-space: nowrap;
     }
-    /* Mobile Touch Controls */
+    /* Mobile & Tablet Touch Controls */
     .touch-controls {
       display: none;
       position: absolute;
-      bottom: 85px;
-      left: 15px;
-      right: 15px;
+      bottom: 82px;
+      left: 12px;
+      right: 12px;
       justify-content: space-between;
       align-items: flex-end;
       pointer-events: none;
-      z-index: 25;
+      z-index: 60;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
     }
-    @media (max-width: 900px), (pointer: coarse) {
+    @media (max-width: 1024px), (pointer: coarse) {
       .touch-controls {
         display: flex;
       }
     }
     .touch-btn {
       pointer-events: auto;
-      width: 70px;
-      height: 70px;
       border-radius: 50%;
       display: flex;
       justify-content: center;
       align-items: center;
       font-weight: 900;
-      font-size: 1.1rem;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.65);
       cursor: pointer;
       user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: transform 0.08s ease, background 0.08s ease;
     }
-    .btn-shoot {
-      background: linear-gradient(135deg, #ef4444, #b91c1c);
-      color: #fff;
-      border: 3px solid #fca5a5;
+    .touch-btn:active {
+      transform: scale(0.92);
+      filter: brightness(1.25);
     }
-    .btn-quiz {
+
+    /* D-Pad Layout */
+    .dpad-container {
+      pointer-events: auto;
+      display: grid;
+      grid-template-columns: repeat(3, 52px);
+      grid-template-rows: repeat(3, 52px);
+      gap: 5px;
+      background: rgba(15, 23, 42, 0.72);
+      padding: 6px;
+      border-radius: 20px;
+      border: 2px solid rgba(56, 189, 248, 0.35);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    }
+    .dpad-btn {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95));
+      border: 1.5px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      border-radius: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 900;
+      font-size: 1.25rem;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .dpad-btn:active, .dpad-btn.active {
       background: linear-gradient(135deg, #0284c7, #0369a1);
       color: #fff;
-      border: 3px solid #7dd3fc;
+      border-color: #7dd3fc;
+      transform: scale(0.94);
+    }
+    .dpad-center {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 1rem;
+      color: #64748b;
+    }
+
+    /* Action Buttons (Right) */
+    .touch-actions-group {
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      align-items: flex-end;
+    }
+    .btn-shoot-big {
+      width: 78px;
+      height: 78px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ef4444, #991b1b);
+      color: #fff;
+      border: 3.5px solid #fca5a5;
+      font-size: 1.2rem;
+      font-weight: 900;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      box-shadow: 0 0 25px rgba(239, 68, 68, 0.6);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .btn-shoot-big:active, .btn-shoot-big.active {
+      transform: scale(0.92);
+      background: linear-gradient(135deg, #f87171, #ef4444);
+    }
+    .btn-action-pill {
+      background: linear-gradient(135deg, #0284c7, #0369a1);
+      color: #fff;
+      border: 2px solid #7dd3fc;
+      border-radius: 14px;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.88rem;
+      font-weight: 800;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 0.3rem;
+      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.45);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .btn-action-pill:active, .btn-action-pill.active {
+      transform: scale(0.94);
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+    }
+    .btn-turn-pill {
+      background: rgba(30, 41, 59, 0.88);
+      color: #cbd5e1;
+      border: 1.5px solid #475569;
+      border-radius: 12px;
+      width: 50px;
+      height: 44px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: 900;
+      font-size: 0.95rem;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .btn-turn-pill:active, .btn-turn-pill.active {
+      background: #0284c7;
+      color: #fff;
+      border-color: #38bdf8;
+      transform: scale(0.94);
+    }
+
+    @media (max-width: 600px) {
+      .dpad-container {
+        grid-template-columns: repeat(3, 44px);
+        grid-template-rows: repeat(3, 44px);
+        padding: 4px;
+        gap: 3px;
+        border-radius: 14px;
+      }
+      .dpad-btn {
+        font-size: 1.05rem;
+        border-radius: 8px;
+      }
+      .btn-shoot-big {
+        width: 66px;
+        height: 66px;
+      }
+      .btn-action-pill {
+        padding: 0.4rem 0.65rem;
+        font-size: 0.8rem;
+      }
+      .btn-turn-pill {
+        width: 44px;
+        height: 38px;
+        font-size: 0.85rem;
+      }
+      .touch-controls {
+        bottom: 78px;
+        left: 6px;
+        right: 6px;
+      }
     }
   </style>
 </head>
@@ -129,16 +280,19 @@
         👥 소속 조: -
       </div>
       <div class="doom-pill" style="color: #cbd5e1;">
-        [WASD/방향키]: 이동 | [Space/클릭]: 사격 | [E]: 퀴즈 풀기
+        [WASD/방향키]: 이동 | [Space]: 사격 | [E]: 퀴즈 | [Q/우측드래그]: 시점회전
       </div>
     </div>
 
     <div style="display: flex; gap: 0.5rem;">
-      <button class="doom-pill" style="cursor: pointer; border-color: #f59e0b;" onclick="doomSound.toggleBgm()">
-        🎵 BGM ON/OFF
+      <button class="doom-pill" style="cursor: pointer; border-color: #38bdf8;" onclick="toggleTouchPad()">
+        📱 패드 컨트롤러
       </button>
-      <button class="doom-pill" style="cursor: pointer; border-color: #38bdf8;" onclick="checkInteraction()">
-        📖 퀴즈 풀기 [E]
+      <button class="doom-pill" style="cursor: pointer; border-color: #f59e0b;" onclick="doomSound.toggleBgm()">
+        🎵 BGM
+      </button>
+      <button class="doom-pill" style="cursor: pointer; border-color: #10b981;" onclick="checkInteraction()">
+        📖 퀴즈 [E]
       </button>
     </div>
   </div>
@@ -146,23 +300,40 @@
   <!-- Notification Toast -->
   <div id="doomNotification">알림 메시지</div>
 
-  <!-- Mobile Touch Controls -->
-  <div class="touch-controls">
-    <div style="display: flex; flex-direction: column; gap: 0.5rem; pointer-events: auto;">
-      <div style="display: flex; gap: 0.5rem;">
-        <button class="touch-btn btn-quiz" style="width: 55px; height: 55px; font-size: 0.9rem;" onclick="rotatePlayer(-0.25)">⟲ 좌</button>
-        <button class="touch-btn btn-quiz" style="width: 55px; height: 55px; font-size: 0.9rem;" onclick="rotatePlayer(0.25)">⟳ 우</button>
-      </div>
-      <button class="touch-btn btn-quiz" style="width: 115px; border-radius: 12px; height: 48px; font-size: 0.9rem;" id="touchQuizBtn">
-        📖 퀴즈 [E]
-      </button>
+  <!-- Mobile & Tablet Touch Controls -->
+  <div id="doomTouchUI" class="touch-controls">
+    <!-- Left: Virtual D-Pad for Movement -->
+    <div class="dpad-container">
+      <div style="grid-column: 2;" class="dpad-btn" id="btnTouchUp">▲</div>
+      <div style="grid-row: 2; grid-column: 1;" class="dpad-btn" id="btnTouchLeft">◀</div>
+      <div style="grid-row: 2; grid-column: 2;" class="dpad-center">🕹️</div>
+      <div style="grid-row: 2; grid-column: 3;" class="dpad-btn" id="btnTouchRight">▶</div>
+      <div style="grid-row: 3; grid-column: 2;" class="dpad-btn" id="btnTouchDown">▼</div>
     </div>
 
-    <div style="display: flex; gap: 0.6rem;">
-      <button class="touch-btn btn-shoot" id="touchShootBtn">
-        🔥 사격
-      </button>
+    <!-- Right: Turn & Action Buttons -->
+    <div class="touch-actions-group">
+      <!-- Upper: Rotation & Weapon switch -->
+      <div style="display: flex; gap: 0.4rem; align-items: center;">
+        <button type="button" class="btn-turn-pill" id="btnTouchTurnLeft">⟲ 좌</button>
+        <button type="button" class="btn-turn-pill" id="btnTouchTurnRight">⟳ 우</button>
+        <button type="button" class="btn-action-pill" style="background: linear-gradient(135deg, #7c3aed, #5b21b6); border-color: #c4b5fd; padding: 0.45rem 0.75rem;" onclick="cycleDoomWeapon()">
+          🔫 무기
+        </button>
+      </div>
+
+      <!-- Lower: Quiz & Big Shoot Button -->
+      <div style="display: flex; gap: 0.6rem; align-items: center;">
+        <button type="button" class="btn-action-pill" style="height: 52px; padding: 0 1rem; font-size: 0.95rem;" id="btnTouchQuiz">
+          📖 퀴즈 [E]
+        </button>
+        <button type="button" class="btn-shoot-big" id="btnTouchShoot">
+          <span>🔥</span>
+          <span style="font-size: 0.72rem; letter-spacing: -0.5px;">사격</span>
+        </button>
+      </div>
     </div>
+  </div>
   </div>
 
   <!-- QUIZ MODAL (Cyberpunk Doom Style) -->

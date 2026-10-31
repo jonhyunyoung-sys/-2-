@@ -243,8 +243,8 @@ const MAP_W = 24;
 const MAP_H = 24;
 const DUNGEON_MAP = [
   [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
-  [1,0,5,0,0,0,4,0,0,2,0,0,4,0,0,3,0,0,4,0,5,0,0,1],
+  [1,0,0,0,5,0,1,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,1],
+  [1,0,0,0,0,0,4,0,0,2,0,0,4,0,0,3,0,0,4,0,5,0,0,1],
   [1,0,0,0,0,0,1,0,0,2,0,0,1,0,0,3,0,0,1,0,0,0,0,1],
   [1,1,1,4,1,1,1,0,0,2,2,0,1,1,4,1,1,1,1,1,4,1,1,1],
   [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
@@ -481,6 +481,7 @@ const keys = {
   strafeRight: false,
   turnLeft: false,
   turnRight: false,
+  sprint: false,
   shoot: false
 };
 
@@ -562,33 +563,65 @@ function setupControls() {
       return;
     }
 
-    const k = e.key.toLowerCase();
-    if (k === 'w' || e.key === 'ArrowUp') keys.forward = true;
-    if (k === 's' || e.key === 'ArrowDown') keys.backward = true;
-    if (k === 'a') keys.strafeLeft = true;
-    if (k === 'd') keys.strafeRight = true;
-    if (e.key === 'ArrowLeft') keys.turnLeft = true;
-    if (e.key === 'ArrowRight') keys.turnRight = true;
+    const code = e.code;
+    const k = e.key ? e.key.toLowerCase() : '';
 
-    if (e.code === 'Space') {
+    // Forward (W, ArrowUp, 한글 ㅈ)
+    if (code === 'KeyW' || code === 'ArrowUp' || k === 'w' || k === 'ㅈ') keys.forward = true;
+    // Backward (S, ArrowDown, 한글 ㄴ)
+    if (code === 'KeyS' || code === 'ArrowDown' || k === 's' || k === 'ㄴ') keys.backward = true;
+    // Strafe Left (A, 한글 ㅁ)
+    if (code === 'KeyA' || k === 'a' || k === 'ㅁ') keys.strafeLeft = true;
+    // Strafe Right (D, 한글 ㅇ)
+    if (code === 'KeyD' || k === 'd' || k === 'ㅇ') keys.strafeRight = true;
+
+    // Turn Left (ArrowLeft, Q, 한글 ㅂ)
+    if (code === 'ArrowLeft' || code === 'KeyQ' || k === 'q' || k === 'ㅂ') keys.turnLeft = true;
+    // Turn Right (ArrowRight)
+    if (code === 'ArrowRight') keys.turnRight = true;
+
+    // Sprint (Shift)
+    if (e.shiftKey || code === 'ShiftLeft' || code === 'ShiftRight') keys.sprint = true;
+
+    // Shoot (Space)
+    if (code === 'Space') {
+      e.preventDefault();
       triggerShoot();
     }
-    if (k === 'e' || k === 'enter') {
+
+    // Interaction / Quiz (E, Enter, 한글 ㄷ)
+    if (code === 'KeyE' || k === 'e' || k === 'ㄷ' || code === 'Enter') {
       checkInteraction();
     }
+
+    // Weapon select (1, 2, 3)
     if (e.key === '1') switchWeapon(1);
     if (e.key === '2') switchWeapon(2);
     if (e.key === '3') switchWeapon(3);
   });
 
   window.addEventListener('keyup', (e) => {
-    const k = e.key.toLowerCase();
-    if (k === 'w' || e.key === 'ArrowUp') keys.forward = false;
-    if (k === 's' || e.key === 'ArrowDown') keys.backward = false;
-    if (k === 'a') keys.strafeLeft = false;
-    if (k === 'd') keys.strafeRight = false;
-    if (e.key === 'ArrowLeft') keys.turnLeft = false;
-    if (e.key === 'ArrowRight') keys.turnRight = false;
+    const code = e.code;
+    const k = e.key ? e.key.toLowerCase() : '';
+
+    if (code === 'KeyW' || code === 'ArrowUp' || k === 'w' || k === 'ㅈ') keys.forward = false;
+    if (code === 'KeyS' || code === 'ArrowDown' || k === 's' || k === 'ㄴ') keys.backward = false;
+    if (code === 'KeyA' || k === 'a' || k === 'ㅁ') keys.strafeLeft = false;
+    if (code === 'KeyD' || k === 'd' || k === 'ㅇ') keys.strafeRight = false;
+    if (code === 'ArrowLeft' || code === 'KeyQ' || k === 'q' || k === 'ㅂ') keys.turnLeft = false;
+    if (code === 'ArrowRight') keys.turnRight = false;
+    if (!e.shiftKey && (code === 'ShiftLeft' || code === 'ShiftRight')) keys.sprint = false;
+  });
+
+  // Reset keys if window loses focus
+  window.addEventListener('blur', () => {
+    keys.forward = false;
+    keys.backward = false;
+    keys.strafeLeft = false;
+    keys.strafeRight = false;
+    keys.turnLeft = false;
+    keys.turnRight = false;
+    keys.sprint = false;
   });
 
   // Mouse click to shoot
@@ -598,7 +631,7 @@ function setupControls() {
     }
   });
 
-  // Touch Controls for Mobile
+  // Touch Controls for Mobile & Tablets
   setupTouchControls();
 }
 
@@ -806,26 +839,126 @@ function checkInteraction() {
   openQuizModal('📖 배움의 퀴즈 스테이션: 문제를 맞춰 무기를 충전하세요!');
 }
 
-// Touch On-Screen Controls for Chromebook / Mobile
+// Touch On-Screen Controls for Smartphones, Tablets & Chromebooks
 function setupTouchControls() {
-  const joy = document.getElementById('touchJoyStick');
-  const shootBtn = document.getElementById('touchShootBtn');
-  const quizBtn = document.getElementById('touchQuizBtn');
+  function bindTouchButton(elementId, keyName) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
 
-  if (shootBtn) {
-    shootBtn.addEventListener('touchstart', (e) => {
+    const press = (e) => {
       e.preventDefault();
+      keys[keyName] = true;
+      el.classList.add('active');
+    };
+    const release = (e) => {
+      e.preventDefault();
+      keys[keyName] = false;
+      el.classList.remove('active');
+    };
+
+    el.addEventListener('pointerdown', press);
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', release);
+  }
+
+  // D-Pad Movement Buttons
+  bindTouchButton('btnTouchUp', 'forward');
+  bindTouchButton('btnTouchDown', 'backward');
+  bindTouchButton('btnTouchLeft', 'strafeLeft');
+  bindTouchButton('btnTouchRight', 'strafeRight');
+
+  // Turn Buttons
+  bindTouchButton('btnTouchTurnLeft', 'turnLeft');
+  bindTouchButton('btnTouchTurnRight', 'turnRight');
+
+  // Action Buttons
+  const shootBtn = document.getElementById('btnTouchShoot');
+  if (shootBtn) {
+    shootBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      shootBtn.classList.add('active');
       triggerShoot();
     });
+    const releaseShoot = (e) => {
+      e.preventDefault();
+      shootBtn.classList.remove('active');
+    };
+    shootBtn.addEventListener('pointerup', releaseShoot);
+    shootBtn.addEventListener('pointercancel', releaseShoot);
   }
 
+  const quizBtn = document.getElementById('btnTouchQuiz');
   if (quizBtn) {
-    quizBtn.addEventListener('touchstart', (e) => {
+    quizBtn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      quizBtn.classList.add('active');
       checkInteraction();
     });
+    const releaseQuiz = (e) => {
+      e.preventDefault();
+      quizBtn.classList.remove('active');
+    };
+    quizBtn.addEventListener('pointerup', releaseQuiz);
+    quizBtn.addEventListener('pointercancel', releaseQuiz);
   }
+
+  // Touch Camera Look: Swipe right half of screen to smoothly rotate camera
+  let touchLookId = null;
+  let lastTouchX = 0;
+
+  window.addEventListener('touchstart', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      // Touch on right half of screen, avoiding top HUD and bottom buttons
+      if (t.clientX > window.innerWidth * 0.4 && t.clientY > 65 && t.clientY < window.innerHeight - 170) {
+        touchLookId = t.identifier;
+        lastTouchX = t.clientX;
+        break;
+      }
+    }
+  }, { passive: false });
+
+  window.addEventListener('touchmove', (e) => {
+    if (touchLookId === null) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === touchLookId) {
+        const deltaX = t.clientX - lastTouchX;
+        lastTouchX = t.clientX;
+        rotatePlayer(deltaX * 0.0075);
+        break;
+      }
+    }
+  }, { passive: false });
+
+  const endTouchLook = (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === touchLookId) {
+        touchLookId = null;
+        break;
+      }
+    }
+  };
+  window.addEventListener('touchend', endTouchLook);
+  window.addEventListener('touchcancel', endTouchLook);
 }
+
+window.cycleDoomWeapon = function() {
+  let nextW = player.weapon + 1;
+  if (nextW > 3) nextW = 1;
+  if (nextW === 3 && !player.bfgUnlocked) nextW = 1;
+  switchWeapon(nextW);
+};
+
+window.toggleTouchPad = function() {
+  const ui = document.getElementById('doomTouchUI');
+  if (ui) {
+    const isShown = window.getComputedStyle(ui).display !== 'none';
+    ui.style.display = isShown ? 'none' : 'flex';
+    showNotification(isShown ? '📱 터치 컨트롤러 숨김' : '📱 터치 컨트롤러 활성화');
+  }
+};
 
 // ============================================================================
 // RAYCASTING 3D RENDER LOOP
@@ -846,7 +979,7 @@ function updatePlayerMovement() {
   // Complete pause & 100% invulnerability during quiz solving
   if (isQuizModalOpen) return;
 
-  const mSpeed = player.moveSpeed;
+  const mSpeed = keys.sprint ? player.moveSpeed * 1.45 : player.moveSpeed;
   const rSpeed = player.rotSpeed;
 
   // Rotation
@@ -857,32 +990,29 @@ function updatePlayerMovement() {
     rotatePlayer(rSpeed);
   }
 
-  // Forward / Backward
+  // Movement Vector Accumulation
+  let moveX = 0;
+  let moveY = 0;
+
   if (keys.forward) {
-    const newX = player.x + player.dirX * mSpeed;
-    const newY = player.y + player.dirY * mSpeed;
-    if (canMoveTo(newX, player.y)) player.x = newX;
-    if (canMoveTo(player.x, newY)) player.y = newY;
+    moveX += player.dirX * mSpeed;
+    moveY += player.dirY * mSpeed;
   }
   if (keys.backward) {
-    const newX = player.x - player.dirX * mSpeed;
-    const newY = player.y - player.dirY * mSpeed;
-    if (canMoveTo(newX, player.y)) player.x = newX;
-    if (canMoveTo(player.x, newY)) player.y = newY;
+    moveX -= player.dirX * mSpeed;
+    moveY -= player.dirY * mSpeed;
   }
-
-  // Strafe
   if (keys.strafeLeft) {
-    const newX = player.x - player.planeX * mSpeed;
-    const newY = player.y - player.planeY * mSpeed;
-    if (canMoveTo(newX, player.y)) player.x = newX;
-    if (canMoveTo(player.x, newY)) player.y = newY;
+    moveX -= player.planeX * mSpeed;
+    moveY -= player.planeY * mSpeed;
   }
   if (keys.strafeRight) {
-    const newX = player.x + player.planeX * mSpeed;
-    const newY = player.y + player.planeY * mSpeed;
-    if (canMoveTo(newX, player.y)) player.x = newX;
-    if (canMoveTo(player.x, newY)) player.y = newY;
+    moveX += player.planeX * mSpeed;
+    moveY += player.planeY * mSpeed;
+  }
+
+  if (moveX !== 0 || moveY !== 0) {
+    tryMove(moveX, moveY);
   }
 
   // Update Monsters AI
@@ -899,13 +1029,37 @@ function rotatePlayer(angle) {
   player.planeY = oldPlaneX * Math.sin(angle) + player.planeY * Math.cos(angle);
 }
 
-function canMoveTo(x, y) {
-  const mx = Math.floor(x);
-  const my = Math.floor(y);
-  if (mx < 0 || mx >= MAP_W || my < 0 || my >= MAP_H) return false;
-  const tile = DUNGEON_MAP[my][mx];
-  // 0 is walkable, and opened door is 0
-  return tile === 0;
+function canMoveTo(x, y, radius = 0.22) {
+  const minX = Math.floor(x - radius);
+  const maxX = Math.floor(x + radius);
+  const minY = Math.floor(y - radius);
+  const maxY = Math.floor(y + radius);
+
+  for (let my = minY; my <= maxY; my++) {
+    for (let mx = minX; mx <= maxX; mx++) {
+      if (mx < 0 || mx >= MAP_W || my < 0 || my >= MAP_H) return false;
+      const tile = DUNGEON_MAP[my][mx];
+      if (tile !== 0) return false;
+    }
+  }
+  return true;
+}
+
+function tryMove(dx, dy) {
+  // 1. Try combined movement
+  if (canMoveTo(player.x + dx, player.y + dy)) {
+    player.x += dx;
+    player.y += dy;
+    return;
+  }
+  // 2. Wall slide along X axis
+  if (canMoveTo(player.x + dx, player.y)) {
+    player.x += dx;
+  }
+  // 3. Wall slide along Y axis
+  if (canMoveTo(player.x, player.y + dy)) {
+    player.y += dy;
+  }
 }
 
 function updateMonsters() {
