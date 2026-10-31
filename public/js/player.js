@@ -32,15 +32,28 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('inputRoomCode').value = codeParam;
   }
 
-  // Auto-generate cool default nickname
-  const nickNames = ['골든러너', '퀴즈마스터', '질풍노도', '빛의속도', '럭키스타', '비트코인', '머니헌터'];
-  const randomNick = nickNames[Math.floor(Math.random() * nickNames.length)];
-  document.getElementById('inputNickname').value = randomNick;
+  // Restore saved student number & nickname or auto-generate
+  const savedNo = localStorage.getItem('bmn_studentNo');
+  const savedNick = localStorage.getItem('bmn_nickname');
+  const sNoInput = document.getElementById('inputStudentNo');
+  const nickInput = document.getElementById('inputNickname');
+
+  if (savedNo && sNoInput) {
+    sNoInput.value = savedNo;
+  }
+  if (savedNick && nickInput) {
+    nickInput.value = savedNick;
+  } else if (nickInput) {
+    const nickNames = ['골든러너', '퀴즈마스터', '질풍노도', '빛의속도', '럭키스타', '비트코인', '머니헌터'];
+    const randomNick = nickNames[Math.floor(Math.random() * nickNames.length)];
+    nickInput.value = randomNick;
+  }
 
   // If autoStart query is present (Solo quick play)
   if (autoStart && codeParam) {
+    const startNick = (nickInput && nickInput.value) || '플레이어';
     setTimeout(() => {
-      joinGameRoom(codeParam, randomNick, selectedAvatar, () => {
+      joinGameRoom(codeParam, startNick, selectedAvatar, () => {
         // Auto start game from solo host if host session exists
         socket.emit('start-game', { code: codeParam });
       });
@@ -71,17 +84,30 @@ function selectAvatar(av, btn) {
 function handleJoinSubmit(e) {
   e.preventDefault();
   const code = document.getElementById('inputRoomCode').value.trim();
-  const name = document.getElementById('inputNickname').value.trim();
+  const sNoInput = document.getElementById('inputStudentNo');
+  const sNo = sNoInput ? sNoInput.value.trim() : '';
+  const nickname = document.getElementById('inputNickname').value.trim();
 
-  if (!code || !name) {
+  if (!code || !nickname) {
     alert('방 번호와 닉네임을 입력해주세요.');
     return;
   }
 
-  joinGameRoom(code, name, selectedAvatar);
+  const studentNo = sNo ? parseInt(sNo, 10) : null;
+  const fullName = studentNo ? `${studentNo}번 ${nickname}` : nickname;
+
+  if (studentNo) {
+    localStorage.setItem('bmn_studentNo', String(studentNo));
+  } else {
+    localStorage.removeItem('bmn_studentNo');
+  }
+  localStorage.setItem('bmn_nickname', nickname);
+  localStorage.setItem('bmn_avatar', selectedAvatar);
+
+  joinGameRoom(code, fullName, selectedAvatar, null, studentNo, nickname);
 }
 
-function joinGameRoom(code, name, avatar, onJoined) {
+function joinGameRoom(code, name, avatar, onJoined, studentNo = null, nickname = null) {
   const joinBtn = document.getElementById('btnJoinGame');
   if (joinBtn) {
     joinBtn.disabled = true;
@@ -93,7 +119,9 @@ function joinGameRoom(code, name, avatar, onJoined) {
   socket.emit('join-room', {
     code,
     name,
-    avatar
+    avatar,
+    studentNo,
+    nickname
   }, (res) => {
     if (!res.success) {
       alert(res.error || '게임 참가에 실패했습니다.');
@@ -106,7 +134,7 @@ function joinGameRoom(code, name, avatar, onJoined) {
 
     // Auto-redirect if room is Don't Look Down
     if (res.config && res.config.gameType === 'dont-look-down') {
-      window.location.href = `/dld?gc=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}&avatar=${encodeURIComponent(avatar)}`;
+      window.location.href = `/dld?gc=${encodeURIComponent(code)}&name=${encodeURIComponent(name)}&avatar=${encodeURIComponent(avatar)}&sno=${encodeURIComponent(studentNo || '')}&nick=${encodeURIComponent(nickname || '')}`;
       return;
     }
 

@@ -49,10 +49,19 @@
               style="width: 100%; padding: 0.85rem 1rem; border-radius: 12px; background: rgba(15, 23, 42, 0.9); border: 2px solid var(--border); color: #fff; font-size: 1.4rem; font-weight: 900; text-align: center; letter-spacing: 3px; outline: none;" />
           </div>
 
+          <!-- Student Number Input -->
+          <div style="margin-bottom: 1rem; text-align: left;">
+            <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">
+              출석 번호 (선택)
+            </label>
+            <input type="number" id="inputStudentNo" min="1" max="60" placeholder="예: 7 (숫자만 입력)"
+              style="width: 100%; padding: 0.75rem 1rem; border-radius: 12px; background: rgba(15, 23, 42, 0.9); border: 2px solid var(--border); color: #fff; font-size: 1.1rem; font-weight: 700; outline: none;" />
+          </div>
+
           <!-- Nickname Input -->
           <div style="margin-bottom: 1.2rem; text-align: left;">
             <label style="display: block; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 0.4rem;">
-              닉네임 (NICKNAME)
+              닉네임 또는 별명 (필수)
             </label>
             <input type="text" id="inputNickname" required placeholder="당신의 멋진 닉네임" maxlength="12"
               style="width: 100%; padding: 0.85rem 1rem; border-radius: 12px; background: rgba(15, 23, 42, 0.9); border: 2px solid var(--border); color: #fff; font-size: 1.1rem; font-weight: 700; outline: none;" />

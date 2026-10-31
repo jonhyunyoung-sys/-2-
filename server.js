@@ -319,10 +319,15 @@ class GameRoom {
     };
   }
 
-  addPlayer(id, name, avatar, socketId = null, isBot = false) {
+  addPlayer(id, name, avatar, socketId = null, isBot = false, studentNo = null, nickname = null) {
+    const sNo = studentNo ? parseInt(studentNo, 10) : null;
+    const nick = (nickname && nickname.trim()) || name || '참가자';
+    const formattedName = sNo ? `${sNo}번 ${nick}` : nick;
     const player = {
       id,
-      name,
+      name: formattedName,
+      nickname: nick,
+      studentNo: sNo,
       avatar: avatar || '🐱',
       socketId,
       isBot,
@@ -336,6 +341,7 @@ class GameRoom {
       stats: {
         correct: 0,
         wrong: 0,
+        maxStreak: 0,
         upgradesBought: 0,
         powerupsUsed: 0
       },
@@ -517,9 +523,13 @@ class GameRoom {
     return Object.values(this.players)
       .map(p => {
         const team = p.teamId && this.teams[p.teamId] ? this.teams[p.teamId] : null;
+        const totalQ = (p.stats.correct || 0) + (p.stats.wrong || 0);
+        const accuracy = totalQ > 0 ? Math.round(((p.stats.correct || 0) / totalQ) * 100) : 0;
         return {
           id: p.id,
           name: p.name,
+          nickname: p.nickname || p.name,
+          studentNo: p.studentNo != null ? p.studentNo : null,
           avatar: p.avatar,
           teamId: p.teamId || null,
           teamName: team ? team.name : '',
@@ -527,6 +537,7 @@ class GameRoom {
           teamEmoji: team ? team.emoji : '',
           balance: Math.round(p.balance),
           streak: p.streak,
+          maxStreak: p.stats.maxStreak || p.streak || 0,
           altitude: Math.round(p.altitude || 0),
           summit: p.summit || 1,
           energy: Math.round(p.energy || 0),
@@ -534,8 +545,10 @@ class GameRoom {
           isFrozen: p.status.isFrozen && Date.now() < p.status.frozenUntil,
           hasShield: p.status.hasShield,
           multiplier: UPGRADES.multiplier[p.upgrades.multiplier - 1].value,
-          correctCount: p.stats.correct,
-          wrongCount: p.stats.wrong,
+          correctCount: p.stats.correct || 0,
+          wrongCount: p.stats.wrong || 0,
+          totalQuestions: totalQ,
+          accuracy,
           isBot: p.isBot
         };
       })
@@ -794,6 +807,7 @@ class GameRoom {
     if (isCorrect) {
       player.streak++;
       player.stats.correct++;
+      player.stats.maxStreak = Math.max(player.stats.maxStreak || 0, player.streak);
       const baseMoney = mpq;
       const streakMoney = (player.streak > 1) ? streakBonus * Math.min(player.streak - 1, 5) : 0;
       delta = (baseMoney + streakMoney) * mult;
@@ -1177,7 +1191,7 @@ io.on('connection', (socket) => {
   });
 
   // Player: Join Room
-  socket.on('join-room', ({ code, name, avatar, playerId }, callback) => {
+  socket.on('join-room', ({ code, name, avatar, playerId, studentNo, nickname }, callback) => {
     const room = rooms[code];
     if (!room) {
       return callback({ success: false, error: '해당 게임 코드를 가진 방이 없습니다.' });
@@ -1195,13 +1209,17 @@ io.on('connection', (socket) => {
     if (player) {
       // Reconnection
       player.socketId = socket.id;
-      player.name = name || player.name;
+      if (studentNo != null && studentNo !== '') player.studentNo = parseInt(studentNo, 10);
+      if (nickname) player.nickname = nickname;
+      player.name = name || (player.studentNo ? `${player.studentNo}번 ${player.nickname}` : (player.nickname || player.name));
       player.avatar = avatar || player.avatar;
     } else {
-      player = room.addPlayer(pId, name || '참가자', avatar || '🐱', socket.id, false);
+      player = room.addPlayer(pId, name, avatar || '🐱', socket.id, false, studentNo, nickname);
       io.to(code).emit('player-joined', {
         id: player.id,
         name: player.name,
+        nickname: player.nickname,
+        studentNo: player.studentNo,
         avatar: player.avatar,
         isBot: false,
         totalPlayers: Object.keys(room.players).length
@@ -1219,6 +1237,8 @@ io.on('connection', (socket) => {
       player: {
         id: player.id,
         name: player.name,
+        nickname: player.nickname,
+        studentNo: player.studentNo,
         avatar: player.avatar,
         teamId: player.teamId,
         altitude: player.altitude || 0,
@@ -1361,6 +1381,7 @@ io.on('connection', (socket) => {
     if (isCorrect) {
       player.streak++;
       player.stats.correct++;
+      player.stats.maxStreak = Math.max(player.stats.maxStreak || 0, player.streak);
       const baseGain = (room.config && room.config.dldSettings && room.config.dldSettings.energyGain) || 1000;
       const streakBonus = (player.streak > 1) ? Math.min(player.streak - 1, 5) * 200 : 0;
       energyGain = baseGain + streakBonus;

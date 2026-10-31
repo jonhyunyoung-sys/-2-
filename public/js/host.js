@@ -358,9 +358,17 @@ function updateTimerDisplay(seconds) {
     `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
-socket.on('leaderboard-updated', (leaderboard) => {
-  playersList = leaderboard;
-  renderLeaderboard(leaderboard);
+let lastFinalReport = null;
+let currentLeaderboard = [];
+let currentTeamLeaderboard = [];
+
+socket.on('leaderboard-updated', (data) => {
+  const lb = Array.isArray(data) ? data : (data.leaderboard || []);
+  const teamLb = data.teamLeaderboard || [];
+  playersList = lb;
+  currentLeaderboard = lb;
+  currentTeamLeaderboard = teamLb;
+  renderLeaderboard(lb);
 });
 
 socket.on('event-log', (log) => {
@@ -371,6 +379,10 @@ socket.on('event-log', (log) => {
 });
 
 socket.on('game-ended', (report) => {
+  lastFinalReport = report;
+  if (report.leaderboard) currentLeaderboard = report.leaderboard;
+  if (report.teamLeaderboard) currentTeamLeaderboard = report.teamLeaderboard;
+
   document.getElementById('inGameSection').style.display = 'none';
   document.getElementById('gameStatusPill').style.display = 'none';
   document.getElementById('btnEndGame').style.display = 'none';
@@ -706,4 +718,260 @@ function onCustomSettingChange() {
   };
 
   syncConfig();
+}
+
+// --- Student Achievement & Excel Export Logic (Classic Quiz Mode) ---
+let currentAchievementSort = 'number';
+
+function getActiveLeaderboard() {
+  if (lastFinalReport && lastFinalReport.leaderboard && lastFinalReport.leaderboard.length > 0) {
+    return lastFinalReport.leaderboard;
+  }
+  return currentLeaderboard || [];
+}
+
+function openAchievementModal() {
+  const modal = document.getElementById('achievementModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  renderAchievementSummary();
+  renderAchievementTable();
+}
+
+function closeAchievementModal() {
+  const modal = document.getElementById('achievementModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function setAchievementSort(sortType) {
+  currentAchievementSort = sortType;
+  const noBtn = document.getElementById('achSortByNoBtn');
+  const rankBtn = document.getElementById('achSortByRankBtn');
+  const accBtn = document.getElementById('achSortByAccBtn');
+
+  if (noBtn) noBtn.classList.toggle('active', sortType === 'number');
+  if (rankBtn) rankBtn.classList.toggle('active', sortType === 'rank');
+  if (accBtn) accBtn.classList.toggle('active', sortType === 'accuracy');
+
+  renderAchievementTable();
+}
+
+function renderAchievementSummary() {
+  const lb = getActiveLeaderboard();
+  const totalPlayers = lb.length;
+  let totalAcc = 0;
+  let maxBal = 0;
+  let totalQ = 0;
+
+  lb.forEach(p => {
+    totalAcc += (p.accuracy || 0);
+    if ((p.balance || 0) > maxBal) maxBal = p.balance || 0;
+    totalQ += (p.totalQuestions || ((p.correctCount || 0) + (p.wrongCount || 0)));
+  });
+
+  const avgAcc = totalPlayers > 0 ? Math.round(totalAcc / totalPlayers) : 0;
+
+  const elTotal = document.getElementById('achStatTotalPlayers');
+  const elAvgAcc = document.getElementById('achStatAvgAccuracy');
+  const elMaxBal = document.getElementById('achStatMaxBalance');
+  const elTotalQ = document.getElementById('achStatTotalQuestions');
+
+  if (elTotal) elTotal.innerText = `${totalPlayers}명`;
+  if (elAvgAcc) elAvgAcc.innerText = `${avgAcc}%`;
+  if (elMaxBal) elMaxBal.innerText = `$${maxBal.toLocaleString()}`;
+  if (elTotalQ) elTotalQ.innerText = `${totalQ}개`;
+}
+
+function renderAchievementTable() {
+  const tbody = document.getElementById('achievementTableBody');
+  if (!tbody) return;
+
+  const lb = [...getActiveLeaderboard()];
+  if (lb.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="padding: 2.5rem; color: #94a3b8; font-weight: 700;">
+          아직 참여한 학생 데이터가 없습니다. 게임을 시작하거나 학생이 참가하면 자동으로 반영됩니다.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  // Pre-calculate rank in leaderboard
+  const rankMap = new Map();
+  lb.forEach((p, idx) => {
+    rankMap.set(p.id, idx + 1);
+  });
+
+  // Sort according to currentAchievementSort
+  if (currentAchievementSort === 'number') {
+    lb.sort((a, b) => {
+      const aNo = (a.studentNo != null && a.studentNo !== '') ? Number(a.studentNo) : 999999;
+      const bNo = (b.studentNo != null && b.studentNo !== '') ? Number(b.studentNo) : 999999;
+      if (aNo !== bNo) return aNo - bNo;
+      return (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '', 'ko');
+    });
+  } else if (currentAchievementSort === 'accuracy') {
+    lb.sort((a, b) => (b.accuracy || 0) - (a.accuracy || 0));
+  } else {
+    // rank (by balance / rankMap)
+    lb.sort((a, b) => (rankMap.get(a.id) || 999) - (rankMap.get(b.id) || 999));
+  }
+
+  tbody.innerHTML = lb.map(p => {
+    const rank = rankMap.get(p.id) || '-';
+    const sNoText = (p.studentNo != null && p.studentNo !== '') ? `${p.studentNo}번` : '-';
+    const teamBadge = p.teamName ? `
+      <span style="display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; font-weight: 800; background: ${p.teamColor || '#6366f1'}33; color: ${p.teamColor || '#a5b4fc'}; border: 1px solid ${p.teamColor || '#6366f1'}66;">
+        ${p.teamEmoji || '🚩'} ${escapeHtml(p.teamName)}
+      </span>
+    ` : '<span style="color: #64748b;">-</span>';
+
+    const rankBadge = rank === 1 ? '🥇 1위' : rank === 2 ? '🥈 2위' : rank === 3 ? '🥉 3위' : `${rank}위`;
+    const acc = p.accuracy != null ? p.accuracy : 0;
+    const accColor = acc >= 80 ? '#10b981' : acc >= 50 ? '#38bdf8' : '#f59e0b';
+
+    return `
+      <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); transition: background 0.15s ease;" onmouseover="this.style.background='rgba(56, 189, 248, 0.08)'" onmouseout="this.style.background='transparent'">
+        <td style="padding: 0.65rem 0.5rem; font-weight: 900; color: #38bdf8;">${sNoText}</td>
+        <td style="padding: 0.65rem 0.5rem; text-align: left; font-weight: 800; color: #fff;">
+          <span style="font-size: 1.15rem; margin-right: 0.25rem;">${p.avatar || '⚡'}</span>
+          ${escapeHtml(p.nickname || p.name)}
+          ${p.isBot ? '<span style="font-size: 0.65rem; background: #475569; padding: 0.1rem 0.35rem; border-radius: 4px; margin-left: 0.25rem;">AI</span>' : ''}
+        </td>
+        <td style="padding: 0.65rem 0.5rem;">${teamBadge}</td>
+        <td style="padding: 0.65rem 0.5rem; font-weight: 900; color: #10b981;">$${(p.balance || 0).toLocaleString()}</td>
+        <td style="padding: 0.65rem 0.5rem; color: #10b981; font-weight: 800;">${p.correctCount || 0}</td>
+        <td style="padding: 0.65rem 0.5rem; color: #ef4444; font-weight: 700;">${p.wrongCount || 0}</td>
+        <td style="padding: 0.65rem 0.5rem; font-weight: 900; color: ${accColor};">${acc}%</td>
+        <td style="padding: 0.65rem 0.5rem; color: #f97316; font-weight: 800;">🔥 ${p.maxStreak || p.streak || 0}</td>
+        <td style="padding: 0.65rem 0.5rem; font-weight: 900; color: #a5b4fc;">${rankBadge}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function downloadAchievementExcel() {
+  if (!window.XLSX) {
+    alert('엑셀 라이브러리(xlsx.full.min.js)가 로드되지 않았습니다.');
+    return;
+  }
+
+  const lb = getActiveLeaderboard();
+  if (lb.length === 0) {
+    alert('내보낼 학생 성취도 데이터가 없습니다.');
+    return;
+  }
+
+  const teamLb = (lastFinalReport && lastFinalReport.teamLeaderboard)
+    ? lastFinalReport.teamLeaderboard
+    : (currentTeamLeaderboard || []);
+
+  const wb = XLSX.utils.book_new();
+
+  // 1. 학생별 성취도 (출석번호 순 정렬)
+  const sortedByNo = [...lb].sort((a, b) => {
+    const aNo = (a.studentNo != null && a.studentNo !== '') ? Number(a.studentNo) : 999999;
+    const bNo = (b.studentNo != null && b.studentNo !== '') ? Number(b.studentNo) : 999999;
+    if (aNo !== bNo) return aNo - bNo;
+    return (a.nickname || a.name || '').localeCompare(b.nickname || b.name || '', 'ko');
+  });
+
+  const sheet1Data = [
+    [
+      '출석번호',
+      '이름(별명)',
+      '소속 조',
+      '최종 순위',
+      '최종 머니($)',
+      '맞힌 문제 수',
+      '틀린 문제 수',
+      '총 문제 수',
+      '정답률(%)',
+      '최대 연속 정답(Streak)'
+    ]
+  ];
+
+  sortedByNo.forEach(p => {
+    const rank = lb.findIndex(item => item.id === p.id) + 1;
+    const totalQ = p.totalQuestions || ((p.correctCount || 0) + (p.wrongCount || 0));
+    sheet1Data.push([
+      p.studentNo != null && p.studentNo !== '' ? p.studentNo : '',
+      p.nickname || p.name,
+      p.teamName || '-',
+      rank,
+      p.balance || 0,
+      p.correctCount || 0,
+      p.wrongCount || 0,
+      totalQ,
+      p.accuracy != null ? p.accuracy : 0,
+      p.maxStreak || p.streak || 0
+    ]);
+  });
+
+  const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+  XLSX.utils.book_append_sheet(wb, ws1, '학생별 성취도(출석번호순)');
+
+  // 2. 랭킹 순 시트
+  const sheet2Data = [
+    [
+      '순위',
+      '출석번호',
+      '이름(별명)',
+      '소속 조',
+      '최종 머니($)',
+      '맞힌 문제 수',
+      '틀린 문제 수',
+      '총 문제 수',
+      '정답률(%)',
+      '최대 연속 정답'
+    ]
+  ];
+
+  lb.forEach((p, idx) => {
+    const totalQ = p.totalQuestions || ((p.correctCount || 0) + (p.wrongCount || 0));
+    sheet2Data.push([
+      idx + 1,
+      p.studentNo != null && p.studentNo !== '' ? p.studentNo : '',
+      p.nickname || p.name,
+      p.teamName || '-',
+      p.balance || 0,
+      p.correctCount || 0,
+      p.wrongCount || 0,
+      totalQ,
+      p.accuracy != null ? p.accuracy : 0,
+      p.maxStreak || p.streak || 0
+    ]);
+  });
+
+  const ws2 = XLSX.utils.aoa_to_sheet(sheet2Data);
+  XLSX.utils.book_append_sheet(wb, ws2, '최종 랭킹 순위');
+
+  // 3. 조별 대항전 성적 시트 (팀전인 경우)
+  if (isTeamMode && teamLb && teamLb.length > 0) {
+    const sheet3Data = [
+      ['팀 순위', '팀명', '팀원 수', '총 머니 합계($)', '팀 평균 머니($)', '팀 총 정답수', '팀원 명단']
+    ];
+    teamLb.forEach((t, idx) => {
+      const memberNames = (t.members || []).map(m => m.name || m.nickname).join(', ');
+      sheet3Data.push([
+        idx + 1,
+        t.name,
+        t.memberCount || (t.members ? t.members.length : 0),
+        t.totalBalance || 0,
+        t.avgBalance || 0,
+        t.correctCount || 0,
+        memberNames
+      ]);
+    });
+    const ws3 = XLSX.utils.aoa_to_sheet(sheet3Data);
+    XLSX.utils.book_append_sheet(wb, ws3, '조별 대항전 성적');
+  }
+
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+  const fileName = `배움날개_퀴즈성취도_${currentRoomCode}_${dateStr}.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
 }

@@ -40,6 +40,10 @@
           🔊
         </button>
 
+        <button id="btnLiveAchievement" class="btn btn-outline" style="padding: 0.4rem 0.85rem; font-size: 0.82rem; font-weight: 800; border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.1);" onclick="openAchievementModal()">
+          📊 성취도 분석
+        </button>
+
         <button id="btnEndGame" class="btn btn-danger" style="display: none; padding: 0.4rem 0.9rem; font-size: 0.85rem;" onclick="endGameEarly()">
           게임 종료 ⏹️
         </button>
@@ -347,12 +351,106 @@
 
         <div id="podiumContainer" class="podium-container"></div>
 
-        <button class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1.15rem; font-weight: 800; margin-top: 1.5rem;" onclick="location.reload()">
-          새 게임 시작하기 🔄
-        </button>
+        <!-- Achievement Action Buttons -->
+        <div style="display: flex; justify-content: center; gap: 0.8rem; flex-wrap: wrap; margin-top: 1.8rem;">
+          <button class="btn btn-outline" style="padding: 0.85rem 1.6rem; font-size: 1.05rem; font-weight: 800; border-color: #38bdf8; color: #38bdf8; background: rgba(56, 189, 248, 0.1);" onclick="openAchievementModal()">
+            📊 학생별 성취도 상세 열람
+          </button>
+          <button class="btn btn-primary" style="padding: 0.85rem 1.8rem; font-size: 1.05rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981); box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);" onclick="downloadAchievementExcel()">
+            📥 엑셀 시트(.xlsx) 다운로드
+          </button>
+          <button class="btn btn-outline" style="padding: 0.85rem 1.5rem; font-size: 1.05rem; font-weight: 800;" onclick="location.reload()">
+            새 게임 시작하기 🔄
+          </button>
+        </div>
       </div>
     </main>
 
+  </div>
+
+  <!-- Achievement & Excel Export Modal -->
+  <div id="achievementModal" class="modal-backdrop" style="display: none; z-index: 10000;">
+    <div class="modal-box" style="max-width: 900px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; padding: 1.5rem; text-align: left;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; margin-bottom: 1rem;">
+        <div>
+          <h2 style="font-size: 1.4rem; font-weight: 900; margin: 0; color: #fff; display: flex; align-items: center; gap: 0.5rem;">
+            📊 학생별 학습 성취도 분석
+          </h2>
+          <p style="color: var(--text-muted); font-size: 0.82rem; margin: 0.2rem 0 0 0;">
+            출석번호순 또는 실시간 순위순으로 확인하고 엑셀 시트로 즉시 저장하세요.
+          </p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 900; background: linear-gradient(135deg, #059669, #10b981);" onclick="downloadAchievementExcel()">
+            📥 엑셀 다운로드 (.xlsx)
+          </button>
+          <button class="btn btn-outline" style="padding: 0.4rem 0.7rem; font-size: 0.9rem;" onclick="closeAchievementModal()">
+            ✖
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Summary Cards -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; margin-bottom: 1rem;">
+        <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; text-align: center;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">총 참가 학생</div>
+          <div id="achStatTotalPlayers" style="font-size: 1.4rem; font-weight: 900; color: #38bdf8;">0명</div>
+        </div>
+        <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; text-align: center;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">평균 정답률</div>
+          <div id="achStatAvgAccuracy" style="font-size: 1.4rem; font-weight: 900; color: #10b981;">0%</div>
+        </div>
+        <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; text-align: center;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">최고 도달 고도</div>
+          <div id="achStatMaxAltitude" style="font-size: 1.4rem; font-weight: 900; color: #f59e0b;">0m</div>
+        </div>
+        <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border); border-radius: 10px; padding: 0.7rem 0.9rem; text-align: center;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">총 푼 문제수</div>
+          <div id="achStatTotalQuestions" style="font-size: 1.4rem; font-weight: 900; color: #a855f7;">0개</div>
+        </div>
+      </div>
+
+      <!-- Sorting Filter Tabs -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem;">
+        <div style="display: flex; gap: 0.4rem;">
+          <button id="achSortByNoBtn" class="btn-diff-preset active" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;" onclick="setAchievementSort('number')">
+            🔢 출석번호순 (기본)
+          </button>
+          <button id="achSortByRankBtn" class="btn-diff-preset" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;" onclick="setAchievementSort('rank')">
+            🏆 성적/고도순
+          </button>
+          <button id="achSortByAccBtn" class="btn-diff-preset" style="padding: 0.35rem 0.8rem; font-size: 0.78rem;" onclick="setAchievementSort('accuracy')">
+            🎯 정답률순
+          </button>
+        </div>
+        <span style="font-size: 0.75rem; color: #94a3b8;">
+          💡 나이스(NEIS) 입력 시 [출석번호순]을 사용하시면 편리합니다.
+        </span>
+      </div>
+
+      <!-- Table Container -->
+      <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; background: rgba(15, 23, 42, 0.6);">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: center;">
+          <thead style="background: rgba(30, 41, 59, 0.9); position: sticky; top: 0; z-index: 1;">
+            <tr style="border-bottom: 1px solid var(--border); color: #94a3b8; font-weight: 800;">
+              <th style="padding: 0.6rem 0.5rem;">번호</th>
+              <th style="padding: 0.6rem 0.5rem; text-align: left;">이름 / 별명</th>
+              <th style="padding: 0.6rem 0.5rem;">소속 조</th>
+              <th style="padding: 0.6rem 0.5rem;">등반 고도</th>
+              <th style="padding: 0.6rem 0.5rem;">맞힌 문제</th>
+              <th style="padding: 0.6rem 0.5rem;">틀린 문제</th>
+              <th style="padding: 0.6rem 0.5rem;">정답률</th>
+              <th style="padding: 0.6rem 0.5rem;">최대 연속</th>
+              <th style="padding: 0.6rem 0.5rem;">추락수</th>
+              <th style="padding: 0.6rem 0.5rem;">순위</th>
+            </tr>
+          </thead>
+          <tbody id="achievementTableBody">
+            <!-- Dynamic Rows -->
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>

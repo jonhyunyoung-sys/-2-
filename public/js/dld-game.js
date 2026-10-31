@@ -33,8 +33,10 @@ const BOUNCE_FORCE = -15.5;
 // URL Params & Room Info
 const urlParams = new URLSearchParams(window.location.search);
 const roomCode = urlParams.get('gc') || urlParams.get('code') || '311866';
-const requestedName = urlParams.get('name') || ('등반러_' + Math.floor(Math.random() * 900 + 100));
-const requestedAvatar = urlParams.get('avatar') || '🐱';
+const hasExplicitName = urlParams.has('name') && urlParams.get('name').trim() !== '';
+const paramStudentNo = urlParams.get('sno') || urlParams.get('studentNo') || '';
+const paramNickname = urlParams.get('nick') || urlParams.get('nickname') || (hasExplicitName ? urlParams.get('name') : '');
+const paramAvatar = urlParams.get('avatar') || '';
 
 // Player State with Dynamic Animation & Squashing
 const player = {
@@ -44,8 +46,10 @@ const player = {
   vy: 0,
   width: 32,
   height: 36,
-  avatar: requestedAvatar,
-  name: requestedName,
+  avatar: paramAvatar || '🐱',
+  studentNo: paramStudentNo ? parseInt(paramStudentNo, 10) : null,
+  nickname: paramNickname || '',
+  name: hasExplicitName ? (paramStudentNo ? `${paramStudentNo}번 ${paramNickname}` : paramNickname) : '',
   energy: 1500,
   altitude: 0,
   summit: 1,
@@ -121,13 +125,109 @@ function applyRoomConfig() {
   generatePlatforms();
 }
 
+// Join UI & Avatars
+const DLD_AVATARS = ['🐱', '🐶', '🦊', '🦁', '🐸', '🐼', '🐨', '🐯', '🦄', '🐧', '🦉', '🚀'];
+let selectedDldAvatar = '🐱';
+
+function setupDldJoinUI() {
+  const modal = document.getElementById('dldJoinModal');
+  if (!modal) {
+    joinDldRoom();
+    return;
+  }
+
+  // If already specified in URL query params, skip modal and join immediately
+  if (hasExplicitName) {
+    modal.style.display = 'none';
+    joinDldRoom();
+    return;
+  }
+
+  // Otherwise, show join modal
+  modal.style.display = 'flex';
+
+  const sNoInput = document.getElementById('inputStudentNo');
+  const nickInput = document.getElementById('inputNickname');
+  const picker = document.getElementById('dldAvatarPicker');
+
+  const savedNo = localStorage.getItem('bmn_studentNo');
+  const savedNick = localStorage.getItem('bmn_nickname');
+  const savedAvatar = localStorage.getItem('bmn_avatar') || '🐱';
+
+  if (savedNo && sNoInput) sNoInput.value = savedNo;
+  if (savedNick && nickInput) nickInput.value = savedNick;
+  selectedDldAvatar = savedAvatar;
+
+  function renderPicker() {
+    if (!picker) return;
+    picker.innerHTML = DLD_AVATARS.map(av => {
+      const isSel = (av === selectedDldAvatar);
+      return `
+        <button type="button" onclick="selectDldAvatar('${av}')" style="font-size: 1.55rem; padding: 0.45rem 0.2rem; border-radius: 10px; border: 2px solid ${isSel ? '#38bdf8' : 'rgba(255,255,255,0.1)'}; background: ${isSel ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.6)'}; cursor: pointer; transition: all 0.15s ease; outline: none; transform: ${isSel ? 'scale(1.12)' : 'scale(1.0)'};">
+          ${av}
+        </button>
+      `;
+    }).join('');
+  }
+
+  window.selectDldAvatar = function(av) {
+    selectedDldAvatar = av;
+    renderPicker();
+  };
+
+  renderPicker();
+
+  setTimeout(() => {
+    if (nickInput && !nickInput.value) {
+      nickInput.focus();
+    } else if (sNoInput) {
+      sNoInput.focus();
+    }
+  }, 200);
+}
+
+window.submitDldJoin = function(event) {
+  if (event) event.preventDefault();
+  const sNoInput = document.getElementById('inputStudentNo');
+  const nickInput = document.getElementById('inputNickname');
+  const modal = document.getElementById('dldJoinModal');
+
+  const sNoVal = sNoInput ? sNoInput.value.trim() : '';
+  const nickVal = nickInput ? nickInput.value.trim() : '';
+
+  if (!nickVal) {
+    alert('별명 또는 이름을 입력해주세요!');
+    if (nickInput) nickInput.focus();
+    return;
+  }
+
+  const sNo = sNoVal ? parseInt(sNoVal, 10) : null;
+  player.studentNo = sNo;
+  player.nickname = nickVal;
+  player.name = sNo ? `${sNo}번 ${nickVal}` : nickVal;
+  player.avatar = selectedDldAvatar || '🐱';
+
+  // Save to localStorage for quick re-entry
+  if (sNo) {
+    localStorage.setItem('bmn_studentNo', String(sNo));
+  } else {
+    localStorage.removeItem('bmn_studentNo');
+  }
+  localStorage.setItem('bmn_nickname', player.nickname);
+  localStorage.setItem('bmn_avatar', player.avatar);
+
+  if (modal) modal.style.display = 'none';
+
+  joinDldRoom();
+};
+
 // Initialize World & Game
 window.addEventListener('DOMContentLoaded', () => {
   generateStars();
   generateParallaxClouds();
   generatePlatforms();
   initCamera();
-  joinDldRoom();
+  setupDldJoinUI();
   setupControls();
 
   // Backdrop click to close question modal
@@ -366,6 +466,8 @@ function joinDldRoom() {
   socket.emit('join-room', {
     code: roomCode,
     name: player.name,
+    nickname: player.nickname,
+    studentNo: player.studentNo,
     avatar: player.avatar
   }, (res) => {
     if (!res.success) {
@@ -383,6 +485,9 @@ function joinDldRoom() {
     if (res.player) {
       player.energy = res.player.energy || 1500;
       if (res.player.teamId) myTeamId = res.player.teamId;
+      if (res.player.nickname) player.nickname = res.player.nickname;
+      if (res.player.studentNo != null) player.studentNo = res.player.studentNo;
+      if (res.player.name) player.name = res.player.name;
     }
     updateHUD();
 
@@ -403,6 +508,8 @@ function joinDldRoom() {
     socket.emit('join-room', {
       code: roomCode,
       name: player.name,
+      nickname: player.nickname,
+      studentNo: player.studentNo,
       avatar: player.avatar,
       playerId: myPlayerId
     }, () => {});
